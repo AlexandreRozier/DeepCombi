@@ -1,10 +1,8 @@
 
 
-from string_to_featmat import string_to_featmat
 import numpy as np 
 from sklearn import preprocessing as pp, svm 
-from helpers import moving_average
-from chi_square_goodness_of_fit_test import chi_square_goodness_of_fit_test
+from helpers import moving_average, chi_square, string_to_featmat
 from matplotlib import pyplot as plt
 
 
@@ -13,9 +11,7 @@ def compute_top_k_indices(data, labels, filter_window_size, top_k , p):
     # Run Combi-Method and identify top_k best SNPs
     ### string data to feature_matrix ###
     featmat = string_to_featmat( data )
-    featmat = featmat.astype(np.double)
-    featmat = pp.scale(featmat, axis=0) # preprocess matrix   
-
+      
     ### SVM training ###
     classifier = svm.LinearSVC()
     classifier.fit(featmat, labels)
@@ -35,25 +31,25 @@ def combi_method(data, labels, pnorm_feature_scaling, svm_rep, Cs, p, classy, fi
     labels: np.array(n)
     top_k: Keep K greatest SVM weight vector values
     pnorm_feature_scaling: unused, default to normalizing with norm 2
-    svm_rep: 
+     
+    RETURNS: indices, pvalues 
     """
     
     (num_subj,num_snps) = data.shape
     
     # Avoid SVM preprocessing
     if(top_k==0):
-        return chi_square_goodness_of_fit_test(data, labels)
+        return chi_square(data, labels)
 
     top_indices_sorted = compute_top_k_indices(data, labels, filter_window_size, top_k, p)
     # 3. For those SNPs compute p-values on the second half of the data
 
-    pvalues = chi_square_goodness_of_fit_test(data, labels, top_indices_sorted)
+    pvalues = chi_square(data, labels, top_indices_sorted)
 
 
     #color_array = ['b' if i in top_indices_sorted else 'r' for i, pvalue in enumerate(pvalues) ]
-    plt.scatter(np.linspace(0,1,len(pvalues)),-np.log10(pvalues))#, color=color_array)
+    #plt.scatter(np.linspace(0,1,len(pvalues)),-np.log10(pvalues))#, color=color_array)
+    #plt.show()
 
-    plt.show()
-    print("hallo")
-
+    return top_indices_sorted, pvalues
   
