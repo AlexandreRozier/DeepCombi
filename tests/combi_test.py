@@ -16,6 +16,10 @@ import os
 import innvestigate
 import innvestigate.utils as iutils
 import matplotlib.pyplot as plt
+import pytest
+from hyperas.distributions import uniform
+from hyperopt import Trials, STATUS_OK, tpe
+from hyperas import optim
 
 
 class TestCombi(unittest.TestCase):
@@ -29,7 +33,7 @@ class TestCombi(unittest.TestCase):
     @classmethod
     def setUp(self):
         skiprows = 0
-        with open('./data/data.txt', 'r') as d, open('./data/labels.txt', 'r') as l:
+        with open('./PythonImplementation/data/data.txt', 'r') as d, open('./PythonImplementation/data/labels.txt', 'r') as l:
             self.data = np.loadtxt(d, np.chararray, skiprows=skiprows)
             self.labels = np.loadtxt(l, dtype=np.int8, skiprows=skiprows)
 
@@ -56,65 +60,3 @@ class TestCombi(unittest.TestCase):
         self.assertLess(t_star, 1)
         self.assertGreater(t_star, 0)
 
-    def test_lrp_keras_training(self):
-        batch_size = 32
-        epochs = 5
-        n_individuals, features_dim = self.data.shape
-
-        # Preprocess data
-        feature_matrix = string_to_featmat(self.data)
-        one_hot_encoded_labels = to_categorical(self.labels)
-
-        model = Sequential()
-        model.add(Dense(units=500, activation='relu', input_dim=3*features_dim))
-        model.add(Dense(units=2, activation='softmax'))
-        model.compile(loss='categorical_crossentropy',
-                      optimizer='sgd',
-                      metrics=['accuracy'])
-
-        dir_path = os.path.dirname(os.path.realpath(__file__))
-        tensorboardCb = callbacks.TensorBoard(log_dir=dir_path+'/keras-logs', histogram_freq=0,
-                                           write_graph=True, write_images=True)
-        earlyStoppingCb = callbacks.EarlyStopping(patience=2, monitor='val_loss')
-
-        history = model.fit(feature_matrix, one_hot_encoded_labels,
-                  epochs=epochs,
-                  batch_size=batch_size,
-                  callbacks=[
-                      tensorboardCb, 
-                      earlyStoppingCb
-                      ],
-                  validation_split=0.33)
-
-        model.save(dir_path+'/exported_models/test_model.h5')
-
-    def test_lrp_innvestigate_analysis(self):
-        dir_path = os.path.dirname(os.path.realpath(__file__))
-
-        model = load_model(dir_path+'/exported_models/test_model.h5')
-        model.get_layer(name='dense_1').name = 'dense_first'
-        n_individuals, features_dim = self.data.shape
-
-        # Stripping the softmax activation from the model
-        model_wo_sm = iutils.keras.graph.model_wo_softmax(model)
-
-        # Creating an analyzer
-        dtaylor_analyzer = innvestigate.analyzer.DeepTaylor(model_wo_sm)
-        feature_matrix = string_to_featmat(self.data)
-
-        analysis = dtaylor_analyzer.analyze(feature_matrix)
-        x = range(features_dim)
-        analysis = analysis.reshape(n_individuals, features_dim, 3).sum(axis=2)
-        fig = plt.figure()
-        for i in range(4):
-            ax1 = fig.add_subplot(2,2,i+1)
-            for j in range(3):
-                indices = np.argpartition(analysis[3*i+j], -30)[-30:]
-                ax1.scatter(indices, analysis[3*i+j][indices], marker='x',alpha=0.7)
-            
-        plt.show()
-        print("done")
-
-
-if __name__ == '__main__':
-    unittest.main()

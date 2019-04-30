@@ -1,6 +1,8 @@
 import math
 import numpy as np
 import sklearn.preprocessing as pp
+from keras import backend as K
+from keras.constraints import Constraint
 
 
 def string_to_featmat(data, data_type_to_be_returned='double', feature_embedding='genotypic'):
@@ -298,3 +300,6 @@ def permuted_combi(data, labels, n_permutations, alpha, n_pvalues):
 
         t_star = sorted_min_pvalues[math.ceil(n_permutations*alpha)] # Alpha percentile of sorted p-values
         return t_star
+
+
+
