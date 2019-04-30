@@ -35,7 +35,7 @@ y_val = None
 y_raw = None
 
 
-with open('./PythonImplementation/data/data.txt', 'r') as d, open('./PythonImplementation/data/labels.txt', 'r') as l:
+with open('./data/data.txt', 'r') as d, open('./data/labels.txt', 'r') as l:
     my_labels = np.loadtxt(l, dtype=np.int8, skiprows=skiprows)
     y_raw = to_categorical(my_labels)
     x_raw = string_to_featmat(np.loadtxt(d, np.chararray, skiprows=skiprows))[:,4800*3:5200*3]

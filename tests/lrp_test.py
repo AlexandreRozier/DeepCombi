@@ -35,24 +35,26 @@ class TestLrp(object):
         # Preprocess data
 
         p = {
-            'epochs': (100,150,30),
-            'dropout_rate': (0.1,0.7, 7),
+            'epochs': [50],
+            'dropout_rate': (0.1,0.7, 1),
             'batch_size': [32]
         }
     
         s = talos.Scan(
             feature_matrix.train, 
             labels.train, 
-            model=create_dense_model, 
+            model=create_conv_model, 
             params = p, 
             dataset_name= talos_output_dir + "syn_wtcc", 
             x_val=feature_matrix.test,
             y_val=labels.test,
-            grid_downsample=0.1,
+            #grid_downsample=0.1,
             experiment_no='linear')
 
         # K-fold cross validation on validation set 
-        val_acc_scores = Evaluate(s).evaluate(feature_matrix.val, labels.val, print_out=True)
+        x_val = np.expand_dims(feature_matrix.val, axis=2) 
+        l_val = np.expand_dims(labels.val, axis=2) 
+        val_acc_scores = Evaluate(s).evaluate(x_val, l_val, print_out=True)
         assert(np.mean(val_acc_scores) > 0.50)
 
         
@@ -69,7 +71,7 @@ class TestLrp(object):
             'batch_size': int(bp[2])
         }
         
-        history, model = create_dense_model(feature_matrix.train, labels.train, feature_matrix.test, labels.test, p)
+        history, model = create_conv_model(feature_matrix.train, labels.train, feature_matrix.test, labels.test, p)
 
         #np.expand_dims(x_train, axis=2) 
         #x_test = np.expand_dims(x_test, axis=2) 

@@ -3,7 +3,8 @@ from keras.layers import Dense, Dropout, Conv1D, Flatten, Activation
 from keras.models import Sequential, load_model
 from keras.utils import to_categorical
 from keras.initializers import TruncatedNormal, Constant
-from keras.constraints import EnforceNeg, MaxNorm, UnitNorm
+from keras.constraints import MaxNorm, UnitNorm
+from helpers import EnforceNeg
 import numpy as np
 import os
 
@@ -56,9 +57,9 @@ def create_conv_model(x_train, y_train, x_test, y_test, params):
     x_test = np.expand_dims(x_test, axis=2)
 
     model = Sequential()
-    #model.add(Dropout(params['dropout_rate'], noise_shape=None, seed=None))
-    model.add(Conv1D(filters=1, kernel_size=35,
+    model.add(Conv1D(filters=5, kernel_size=35,
                      padding='valid', activation='relu'))  # n, d-35, 1
+    model.add(Dropout(params['dropout_rate'], noise_shape=None, seed=None))
     model.add(Flatten())  # n, d-35
     model.add(Dense(units=2, activation='softmax'))
     model.compile(loss='categorical_crossentropy',

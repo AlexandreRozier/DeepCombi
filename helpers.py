@@ -303,3 +303,10 @@ def permuted_combi(data, labels, n_permutations, alpha, n_pvalues):
 
 
 
+class EnforceNeg(Constraint):
+    """Constrains the weights to be negative.
+    """
+
+    def __call__(self, w):
+        w *= K.cast(K.greater_equal(-w, 0.), K.floatx())
+        return w
