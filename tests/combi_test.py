@@ -33,7 +33,7 @@ class TestCombi(unittest.TestCase):
     @classmethod
     def setUp(self):
         skiprows = 0
-        with open('./PythonImplementation/data/data.txt', 'r') as d, open('./PythonImplementation/data/labels.txt', 'r') as l:
+        with open('./data/data.txt', 'r') as d, open('./data/labels.txt', 'r') as l:
             self.data = np.loadtxt(d, np.chararray, skiprows=skiprows)
             self.labels = np.loadtxt(l, dtype=np.int8, skiprows=skiprows)
 
