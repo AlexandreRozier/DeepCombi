@@ -49,7 +49,7 @@ class TestLrp(object):
             dataset_name= talos_output_dir + "syn_wtcc", 
             x_val=features.test,
             y_val=labels.test,
-            #grid_downsample=0.1,
+            grid_downsample=0.1,
             experiment_no='conv',
             seed=seed)
 

@@ -37,7 +37,7 @@ y_all = None
 
 seed = 666
 
-with open('./data/data.txt', 'r') as d, open('./data/labels.txt', 'r') as l:
+with open('./data/generated_data.txt', 'r') as d, open('./data/generated_labels.txt', 'r') as l:
     my_labels = np.loadtxt(l, dtype=np.int8, skiprows=skiprows)
     y_all = to_categorical(my_labels)
     x_all = string_to_featmat(np.loadtxt(

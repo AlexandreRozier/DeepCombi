@@ -7,7 +7,6 @@ from matplotlib import pyplot as plt
 
 
 def compute_top_k_indices(data, labels, filter_window_size, top_k , p):
-    (num_subj,num_snps) = data.shape
     # Run Combi-Method and identify top_k best SNPs
     ### string data to feature_matrix ###
     featmat = string_to_featmat( data )
@@ -25,7 +24,7 @@ def compute_top_k_indices(data, labels, filter_window_size, top_k , p):
     assert(weights[top_indices_sorted[0]] == np.amax(weights))
     return top_indices_sorted
 
-def combi_method(data, labels, pnorm_feature_scaling, svm_rep, Cs, p, classy, filter_window_size,p_pnorm_filter, top_k=0 ):
+def combi_method(data, labels, pnorm_feature_scaling, svm_rep, Cs, p, classy, filter_window_size,p_pnorm_filter, top_k=0, full_plot=False ):
     """
     data: np.array(n,3*p) SNPs-to-person matrix
     labels: np.array(n)
@@ -35,7 +34,6 @@ def combi_method(data, labels, pnorm_feature_scaling, svm_rep, Cs, p, classy, fi
     RETURNS: indices, pvalues 
     """
     
-    (num_subj,num_snps) = data.shape
     
     # Avoid SVM preprocessing
     if(top_k==0):
@@ -46,10 +44,12 @@ def combi_method(data, labels, pnorm_feature_scaling, svm_rep, Cs, p, classy, fi
 
     pvalues = chi_square(data, labels, top_indices_sorted)
 
-
-    #color_array = ['b' if i in top_indices_sorted else 'r' for i, pvalue in enumerate(pvalues) ]
-    #plt.scatter(np.linspace(0,1,len(pvalues)),-np.log10(pvalues))#, color=color_array)
-    #plt.show()
+    if full_plot:
+        complete_pvalues = chi_square(data, labels)
+        color_array = ['b' if i in top_indices_sorted else 'r' for i, pvalue in enumerate(complete_pvalues) ]
+        plt.scatter(range(len(complete_pvalues)),-np.log10(complete_pvalues), marker='x',color=color_array)
+        plt.xlim(4800,5200)
+        plt.show()
 
     return top_indices_sorted, pvalues
   

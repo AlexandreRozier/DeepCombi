@@ -33,7 +33,7 @@ class TestCombi(unittest.TestCase):
     @classmethod
     def setUp(self):
         skiprows = 0
-        with open('./data/data.txt', 'r') as d, open('./data/labels.txt', 'r') as l:
+        with open('./data/generated_data.txt', 'r') as d, open('./data/generated_labels.txt', 'r') as l:
             self.data = np.loadtxt(d, np.chararray, skiprows=skiprows)
             self.labels = np.loadtxt(l, dtype=np.int8, skiprows=skiprows)
 
@@ -48,8 +48,10 @@ class TestCombi(unittest.TestCase):
 
     def test_combi(self):
         n_pvalues = 30
-        pvalues = combi_method(self.data, self.labels, pnorm_feature_scaling, svm_rep,
-                               Cs, 2, classy, filter_window_size, p_pnorm_filter, n_pvalues)
+        top_indices_sorted, pvalues = combi_method(self.data, self.labels, pnorm_feature_scaling, svm_rep,
+                               Cs, 2, classy, filter_window_size, p_pnorm_filter, n_pvalues,full_plot=True)
+        print('PVALUES CHOSEN: {}'.format(top_indices_sorted))
+
 
     def test_permutations(self):
         n_permutations = 10

@@ -34,7 +34,7 @@ p_pnorm_filter_mtest = 6# 1,2,4,100, 0.25, 0.5
 p_svm = 2
 svm_epsilon = 1e-3
 
-rep_inform = 10
+rep_inform = 1
 inform_snps= 20  # 15-20
 noise_snps= 10000  # 10,000, even
 individuals= 300  # 100-300
