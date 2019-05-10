@@ -79,7 +79,7 @@ class TestLrp(object):
         print("Params: {}; Mean Accuracy: {}; Std: {}".format(bp, np.mean(val_acc_scores), np.std(val_acc_scores)))
         
         assert(np.mean(val_acc_scores) > 0.70)
-        model.save(os.path.join(TEST_DIR,'/exported_models/conv.h5'))
+        model.save(os.path.join(TEST_DIR,'exported_models','conv.h5'))
 
 
     def test_save_model(self, features, labels):
@@ -94,8 +94,8 @@ class TestLrp(object):
             #'dropout_rate': bp[2]
         }
         history, model = create_conv_model(features.train, labels.train, features.test, labels.test, p)
-        model.save(os.path.join(TEST_DIR,'/exported_models/conv.h5'))
-        model2 = keras.models.load_model(os.path.join(TEST_DIR,'/exported_models/conv.h5'),
+        model.save(os.path.join(TEST_DIR,'exported_models','conv.h5'))
+        model2 = keras.models.load_model(os.path.join(TEST_DIR,'exported_models','conv.h5'),
               custom_objects={'EnforceNeg':EnforceNeg})
  
         predictions = model2.predict(features.val[:2])
@@ -109,7 +109,7 @@ class TestLrp(object):
         """ Tests the LRP result on our best model
         """
 
-        model = load_model(os.path.join(TEST_DIR,'/exported_models/conv.h5'), custom_objects={'EnforceNeg':EnforceNeg})
+        model = load_model(os.path.join(TEST_DIR,'exported_models','conv.h5'), custom_objects={'EnforceNeg':EnforceNeg})
         model_wo_sm = iutils.keras.graph.model_wo_softmax(model)
        
         # Creating an analyzer
