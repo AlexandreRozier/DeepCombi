@@ -37,19 +37,19 @@ y_test = None
 y_val = None
 y_all = None
 
-raw_data = None
-raw_labels = None
+raw_data_ = None
+raw_labels_ = None
 seed = 666
 
 
 
-with open(os.path.join(DATA_DIR,'syn_data.txt'), 'r') as d, open(os.path.join(DATA_DIR,'syn_labels.txt'), 'r') as l:
+with open(os.path.join(DATA_DIR,'light_data.txt'), 'r') as d, open(os.path.join(DATA_DIR,'light_labels.txt'), 'r') as l:
     print('STARTING DATA PARSING...')
     start_time = time()
-    raw_labels = np.loadtxt(l, dtype=np.int8, skiprows=skiprows)
-    raw_data = np.loadtxt(d, np.chararray, skiprows=skiprows)
-    y_all = to_categorical(raw_labels)
-    x_all = string_to_featmat(raw_data, embedding_type='2d')
+    raw_labels_ = np.loadtxt(l, dtype=np.int8, skiprows=skiprows)
+    raw_data_ = np.loadtxt(d, np.chararray, skiprows=skiprows)
+    y_all = to_categorical(raw_labels_)
+    x_all = string_to_featmat(raw_data_, embedding_type='2d')
     x_train, x_test, y_train, y_test = train_test_split(
         x_all, y_all, test_size=TEST_PERCENTAGE, random_state=np.random.RandomState(seed))
     x_train, x_val, y_train, y_val = train_test_split(
@@ -59,13 +59,16 @@ with open(os.path.join(DATA_DIR,'syn_data.txt'), 'r') as d, open(os.path.join(DA
     print("TIME ELASPED DURING DATA PARSING:{}".format(time()-start_time))
 
 
-@pytest.fixture(scope = "module")
-def raw_data():
-    return raw_data
+
+
 
 @pytest.fixture(scope = "module")
 def raw_labels():
-    return raw_labels
+    return raw_labels_
+
+@pytest.fixture(scope = "module")
+def raw_data():
+    return raw_data_
 
 
 @pytest.fixture(scope = "module")
@@ -76,8 +79,6 @@ def labels():
 @pytest.fixture(scope = "module")
 def features():
     return Features(x_train, x_test, x_val, x_all)
-
-
 
 
 

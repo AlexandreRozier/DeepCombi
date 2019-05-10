@@ -17,9 +17,6 @@ import innvestigate
 import innvestigate.utils as iutils
 import matplotlib.pyplot as plt
 import pytest
-from hyperas.distributions import uniform
-from hyperopt import Trials, STATUS_OK, tpe
-from hyperas import optim
 
 @pytest.mark.incremental
 class TestCombi(object):
@@ -43,7 +40,9 @@ class TestCombi(object):
 
 
     def test_permutations(self, raw_data, raw_labels):
-        n_permutations = 1
+        """ Tests the permuted version of COMBI
+        """
+        n_permutations = 5
         alpha = 0.05
         n_pvalues = 30
         t_star = permuted_combi_method(raw_data, raw_labels,
@@ -51,8 +50,8 @@ class TestCombi(object):
                                Cs, 2, classy, filter_window_size, p_pnorm_filter, n_pvalues)
         pvalues = chi_square(raw_data, raw_labels)
         plt.scatter(range(len(pvalues)),-np.log10(pvalues), marker='x')
-        plt.axhline(y=t_star, color='r', linestyle='-')
-
-        assert t_star < 1
+        plt.axhline(y=-np.log10(t_star), color='r', linestyle='-')
+        plt.show()
         assert t_star > 0
+        assert t_star < pvalues.mean() # Tests t_star selectivity
 

@@ -2,6 +2,11 @@
 import numpy as np
 import os
 
+if 'ROOT_DIR' not in os.environ:
+    os.environ['ROOT_DIR'] = "/home/hx/Work/Masterarbeit/PythonImplementation"
+
+
+
 ROOT_DIR = os.environ['ROOT_DIR']
 DATA_DIR = os.path.join(ROOT_DIR,'data')
 TEST_DIR = os.path.join(ROOT_DIR,'tests')

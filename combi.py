@@ -58,9 +58,8 @@ def combi_method(data, labels, pnorm_feature_scaling, svm_rep, Cs, p, classy, fi
 def permuted_combi_method(data, labels, n_permutations, alpha, n_pvalues, *args):
     min_pvalues = np.zeros(n_permutations)
     for i in tqdm(range(n_permutations)):
-
         permuted_labels = np.random.permutation(labels)
-        indices, pvalues = combi_method(data, permuted_labels, args)
+        indices, pvalues = combi_method(data, permuted_labels, *args)
         min_pvalue = pvalues.min()
         min_pvalues[i] = min_pvalue
     sorted_min_pvalues = np.sort(min_pvalues)

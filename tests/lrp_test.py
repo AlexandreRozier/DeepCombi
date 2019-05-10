@@ -18,8 +18,7 @@ import keras.constraints
 from sklearn.model_selection import train_test_split, KFold
 import talos
 from talos import Reporting, Evaluate, Deploy, Restore
-from combi import combi_method
-from helpers import chi_square, permuted_combi, string_to_featmat, EnforceNeg 
+from helpers import chi_square, string_to_featmat, EnforceNeg 
 keras.constraints.EnforceNeg = EnforceNeg # Absolutely crucial
 
 from parameters_complete import (Cs, classy, filter_window_size,
