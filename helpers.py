@@ -1,8 +1,120 @@
+from scipy.stats import chi2
 import math
 import numpy as np
 import sklearn.preprocessing as pp
 from keras import backend as K
 from keras.constraints import Constraint
+import os
+from tqdm import tqdm
+import h5py
+
+from parameters_complete import DATA_DIR
+
+from tqdm import tqdm
+
+
+def sanitize_chromosome(chromosome):
+    # Remove SNPs with unknown values
+    allel1_mat = chromosome[:, :, 0]
+    allel2_mat = chromosome[:, :, 1]
+    valid_mask_1 = np.where(allel1_mat != 48, True, False)
+    valid_mask_2 = np.where(allel2_mat != 48, True, False)
+    valid_snps = np.logical_and(valid_mask_1, valid_mask_2)  # Elements
+    valid_columns = valid_snps.all(axis=0)
+
+    chrom_valid = chromosome[:, valid_columns]  # (n, n_valid_snp, 2)
+    n_indiv, _, _ = chrom_valid.shape
+
+    # Remove SNPs with insufficient minor frequencies
+    lex_min_per_snp = chrom_valid.min(axis=(0, 2))  # (n)
+    lex_min_map = np.tile(lex_min_per_snp, [n_indiv, 1])
+
+    min_mask1 = np.where(chrom_valid[:, :, 0] == lex_min_map, True, False)
+    min_mask2 = np.where(chrom_valid[:, :, 1] == lex_min_map, True, False)
+
+    maf = (np.sum(min_mask1, axis=0) +
+           np.sum(min_mask2, axis=0))/(2*n_indiv)
+    maf = np.minimum(maf, 1-maf)
+    chrom_valid = chrom_valid[:, maf > 0.15, :]
+    return chrom_valid
+
+
+def generate_crohn_mat(root_path=DATA_DIR, c=6, n_replication=20, group_size=300, n_info_snps=20, n_noise_snps=10000):
+
+    try:
+        os.remove(os.path.join(root_path, 'syn_data.txt'))
+    except FileNotFoundError:
+        pass
+
+    try:
+        os.remove(os.path.join(root_path, 'syn_labels.txt'))
+
+    except FileNotFoundError:
+        pass
+
+    f = h5py.File(os.path.join(DATA_DIR, 'chromo_01.mat'), 'r')
+    chrom1_full = f.get('X')
+    chrom1_full = np.array(chrom1_full).T
+    f.close()
+
+    f2 = h5py.File(os.path.join(DATA_DIR, 'chromo_02.mat'), 'r')
+    chrom2_full = f2.get('X')
+    chrom2_full = np.array(chrom2_full).T
+    f2.close()
+
+    for i in tqdm(range(n_replication)):
+        chrom1_full = np.roll(chrom1_full, group_size)
+        chrom2_full = np.roll(chrom2_full, group_size)
+
+        chrom1 = chrom1_full[:group_size]
+        n_indiv, _ = chrom1.shape
+        chrom1 = chrom1.reshape(n_indiv, -1, 3)[:, :, :2]
+        chrom1 = sanitize_chromosome(chrom1)
+
+        chrom2 = chrom2_full[:group_size]
+        n_indiv, _ = chrom2.shape
+        chrom2 = chrom2.reshape(n_indiv, -1, 3)[:, :, :2]
+        chrom2 = sanitize_chromosome(chrom2)
+
+        half_noise_size = int(n_noise_snps/2)
+        data = np.concatenate((chrom2[:, :half_noise_size], chrom1[:, :n_info_snps],
+                               chrom2[:, half_noise_size:half_noise_size*2]), axis=1)
+        # If the number of encoded SNPs is insufficient
+        if data.shape[1] != n_info_snps + n_noise_snps:
+            print("SKIPPING RUN")
+            pass
+        else:
+            # Generate Informative  SNPs file
+            with open(os.path.join(root_path, 'syn_data.txt'), 'a') as file:
+                for i in tqdm(range(n_indiv)):
+                    for j in range(n_info_snps+n_noise_snps):
+                        all1 = data[i, j, 0]
+                        all2 = data[i, j, 1]
+                        if all1 < all2:
+                            file.write("{}{} ".format(
+                                str(chr(all1)), str(chr(all2))))
+                        else:
+                            file.write("{}{} ".format(
+                                str(chr(all2)), str(chr(all1))))
+                    file.write("\n")
+
+            # Generate Labels from UNIQUE SNP at position 9
+
+            info_snp_idx = 9
+            info_snp = chrom1[:, info_snp_idx]  # (n,2)
+            lex_maj = info_snp.max()  # (n,1)
+            mask1 = np.where(info_snp[:, 0] == lex_maj, True, False)
+            mask2 = np.where(info_snp[:, 1] == lex_maj, True, False)
+            nb_major_allels = np.sum([mask1, mask2], axis=0)  # (n,1)
+            probabilities = np.power(
+                (1+np.exp(-c * (nb_major_allels - np.median(nb_major_allels)))), -1)
+            random_vector = np.random.uniform(size=n_indiv)
+            labels = np.where(probabilities > random_vector, "1", "-1")
+
+            with open(os.path.join(root_path, 'syn_labels.txt'), 'a') as file:
+                for label in tqdm(labels):
+                    file.write(label+"\n")
+    return os.path.join(root_path, 'syn_data.txt'), os.path.join(root_path, 'syn_labels.txt')
 
 
 def string_to_featmat(data, data_type_to_be_returned='double', embedding_type='2d'):
@@ -33,7 +145,8 @@ def string_to_featmat(data, data_type_to_be_returned='double', embedding_type='2
 
     # Masks showing valid or invalid indices
     # SNPs being unchanged amongst the whole dataset, hold no information
-    invalid_bool_mask = np.tile(np.where(lexmin_by_pair == lexmax_by_pair, True, False),[n_subjects, 1])
+    invalid_bool_mask = np.tile(
+        np.where(lexmin_by_pair == lexmax_by_pair, True, False), [n_subjects, 1])
 
     lexmin_mask = np.tile(lexmin_by_pair, [n_subjects, 1])
     lexmax_mask = np.tile(lexmax_by_pair, [n_subjects, 1])
@@ -52,35 +165,32 @@ def string_to_featmat(data, data_type_to_be_returned='double', embedding_type='2
         second_strand_by_person_mat == lexmax_mask, True, False)
 
     first_strand_by_person_mat[allele1_lexmajor_bool_mask] = 2
-    feature_map = np.zeros((n_subjects, num_snp3),dtype=(int,3))
+    feature_map = np.zeros((n_subjects, num_snp3), dtype=(int, 3))
 
     feature_map[np.logical_and(allele1_lexminor_bool_mask,
-                        allele2_lexminor_bool_mask)] = [1, 0, 0]
+                               allele2_lexminor_bool_mask)] = [1, 0, 0]
     feature_map[np.logical_or(
         np.logical_and(allele1_lexmajor_bool_mask,
-                        allele2_lexminor_bool_mask),
+                       allele2_lexminor_bool_mask),
         np.logical_and(allele1_lexminor_bool_mask, allele2_lexmajor_bool_mask))
     ] = [0, 1, 0]
     feature_map[np.logical_and(allele1_lexmajor_bool_mask,
-                        allele2_lexmajor_bool_mask)] = [0, 0, 1]
+                               allele2_lexmajor_bool_mask)] = [0, 0, 1]
     feature_map[invalid_bool_mask] = [0, 0, 0]
     feature_map = np.reshape(feature_map, (n_subjects, 3*num_snp3))
     feature_map = feature_map.astype(np.double)
-    feature_map = pp.scale(feature_map, axis=0) # preprocess matrix 
+    feature_map = pp.scale(feature_map, axis=0)  # preprocess matrix
 
     if(embedding_type == '2d'):
         pass
-    elif(embedding_type =='3d'):
+    elif(embedding_type == '3d'):
         feature_map = np.reshape(feature_map, (n_subjects, num_snp3, 3))
 
-    
     return feature_map
-       
-   
 
 
 def count_lines(filename):
-   return sum(1 for line in open(filename))
+    return sum(1 for line in open(filename))
 
 
 def count_columns(filename):
@@ -90,45 +200,45 @@ def count_columns(filename):
 
 
 def moving_average(w, k, power=1):
-        """
-        Inspired from https://uk.mathworks.com/matlabcentral/fileexchange/12276-moving_average-v3-1-mar-2008
-        """
-        assert(k%2==1)
-        
-        wnew = np.absolute(w)
-        wnew = np.power(wnew,power)
-        wnew = np.concatenate((
-                np.zeros(int((k-1)/2+1)),
-                wnew, 
-                np.zeros(int((k-1)/2))),
-                axis=None)
-        wnew = np.cumsum(wnew) 
-        assert(wnew[k:].shape==wnew[0:-k].shape)  
-        wnew = np.subtract(wnew[k:],wnew[0:-k])
-        wnew = np.power(wnew,1.0/power)
-        wnew = np.divide(wnew, k**(1.0/power))
-        return wnew
+    """
+    Inspired from https://uk.mathworks.com/matlabcentral/fileexchange/12276-moving_average-v3-1-mar-2008
+    """
+    assert(k % 2 == 1)
+
+    wnew = np.absolute(w)
+    wnew = np.power(wnew, power)
+    wnew = np.concatenate((
+        np.zeros(int((k-1)/2+1)),
+        wnew,
+        np.zeros(int((k-1)/2))),
+        axis=None)
+    wnew = np.cumsum(wnew)
+    assert(wnew[k:].shape == wnew[0:-k].shape)
+    wnew = np.subtract(wnew[k:], wnew[0:-k])
+    wnew = np.power(wnew, 1.0/power)
+    wnew = np.divide(wnew, k**(1.0/power))
+    return wnew
 
 # TODO test this
-def other_moving_avg(x,k,p):
-        x = np.absolute(x)
-        x = np.power(x, p)
-        d = len(x)
-        result = np.zeros(d)
-        for j in range(d):
-                acc = 0
-                for l in range(max(0,j-int((k-1)/2)), min(d,j+int((k-1)/2))):
-                        acc += x[l]
-                result[j] = acc
-        return np.power(result, 1.0/p)
 
 
-import numpy as np
-from scipy.stats import chi2
+def other_moving_avg(x, k, p):
+    x = np.absolute(x)
+    x = np.power(x, p)
+    d = len(x)
+    result = np.zeros(d)
+    for j in range(d):
+        acc = 0
+        for l in range(max(0, j-int((k-1)/2)), min(d, j+int((k-1)/2))):
+            acc += x[l]
+        result[j] = acc
+    return np.power(result, 1.0/p)
 
 
 def chi_square(data, labels, filter_indices=[]):
     """
+    data: 2D encoding
+    labels: +1, -1 encoding
     filter_indices: array of indices ordering the supposed top k p values
     """
 
@@ -243,7 +353,8 @@ def chi_square(data, labels, filter_indices=[]):
             # Independence assumption: e = nb_c_or_c * genotype_table / N
             expected = np.divide(np.multiply(
                 case_ctrl_table[i], genotype_table[j]), valid_n_by_snp)
-            nonzero_mask = np.where(expected != 0, True, False) # Expected can be 0 if dataset does not contain this (genotype, group) combination
+            # Expected can be 0 if dataset does not contain this (genotype, group) combination
+            nonzero_mask = np.where(expected != 0, True, False)
             observed = valid_table[i, j, nonzero_mask]
             zero_mask = np.logical_not(nonzero_mask)
             if (np.sum(zero_mask) != len(expected)):  # If expected has at least one nonzero value
@@ -253,18 +364,6 @@ def chi_square(data, labels, filter_indices=[]):
 
     pvalues = chi2.sf(chisq_value, 2)
     return pvalues
-
-def permuted_combi(data, labels, n_permutations, alpha, n_pvalues):
-        indices = np.random.randint(data.shape[1], size=n_pvalues)       
-        min_pvalues = np.zeros(n_permutations)
-        for i in range(n_permutations):
-            permuted_labels = np.random.permutation(labels)
-            min_pvalue = chi_square(data, permuted_labels, indices).min()
-            min_pvalues[i] = min_pvalue
-        sorted_min_pvalues = np.sort(min_pvalues)
-
-        t_star = sorted_min_pvalues[math.ceil(n_permutations*alpha)] # Alpha percentile of sorted p-values
-        return t_star
 
 
 

@@ -1,8 +1,13 @@
 
 import numpy as np
-"""
- Def parameters
-"""
+import os
+
+ROOT_DIR = os.environ['ROOT_DIR']
+DATA_DIR = os.path.join(ROOT_DIR,'data')
+TEST_DIR = os.path.join(ROOT_DIR,'tests')
+TALOS_OUTPUT_DIR = os.path.join(TEST_DIR,'talos_output')
+
+
 
 top_k= 30
 top_k_multi = top_k*3

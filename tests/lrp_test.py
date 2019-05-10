@@ -24,14 +24,14 @@ keras.constraints.EnforceNeg = EnforceNeg # Absolutely crucial
 
 from parameters_complete import (Cs, classy, filter_window_size,
                                  p_pnorm_filter, pnorm_feature_scaling,
-                                 svm_rep)
+                                 svm_rep, TEST_DIR, TALOS_OUTPUT_DIR)
 from models import create_conv_model, create_dense_model
 from tests.conftest import seed
 
 @pytest.mark.incremental
 class TestLrp(object):
     
-    def test_talos_hpopt(self, features, labels, talos_output_dir, test_dir):
+    def test_talos_hpopt(self, features, labels):
         """Performs Hyperparameters Optimization
         """  
 
@@ -44,9 +44,9 @@ class TestLrp(object):
         s = talos.Scan(
             features.train, 
             labels.train, 
-            model=create_dense_model, 
+            model=create_conv_model, 
             params = p, 
-            dataset_name= talos_output_dir + "syn_wtcc", 
+            dataset_name= os.path.join(TALOS_OUTPUT_DIR, "syn_wtcc"), 
             x_val=features.test,
             y_val=labels.test,
             grid_downsample=0.1,
@@ -58,11 +58,11 @@ class TestLrp(object):
         assert np.mean(scores) > 0.70
         
 
-    def test_with_optimal_params(self, features, talos_output_dir, labels, test_dir):
+    def test_with_optimal_params(self, features, labels):
         """ Trains and validate through KFold a model with the optimal hyperparams previously exhumed
         """
 
-        r = Reporting(talos_output_dir+'syn_wtcc_conv.csv')
+        r = Reporting(os.path.join(TALOS_OUTPUT_DIR,'syn_wtcc_conv.csv'))
         bp = r.best_params('val_acc')[0]
         print("Using hyperparameters: {}".format(bp))
         p = {
@@ -75,27 +75,28 @@ class TestLrp(object):
         kfold = KFold(n_splits=3, shuffle=True, random_state=seed)
         val_acc_scores = []
         for train, test in kfold.split(features.val):
-            history, model = create_dense_model(features.val[train], labels.val[train], features.val[test], labels.val[test], p)
+            history, model = create_conv_model(features.val[train], labels.val[train], features.val[test], labels.val[test], p)
             val_acc_scores.append(history.history['val_acc'])
         print("Params: {}; Mean Accuracy: {}; Std: {}".format(bp, np.mean(val_acc_scores), np.std(val_acc_scores)))
         
         assert(np.mean(val_acc_scores) > 0.70)
-        model.save(test_dir+'/exported_models/conv.h5')
+        model.save(os.path.join(TEST_DIR,'/exported_models/conv.h5'))
 
 
-    def test_save_model(self, features, talos_output_dir, labels, test_dir):
+    def test_save_model(self, features, labels):
         """ Tests if model saves correctly with custom Constraints
         """
-        r = Reporting(talos_output_dir+'syn_wtcc_conv.csv')
+
+        r = Reporting(os.path.join(TALOS_OUTPUT_DIR,'syn_wtcc_conv.csv'))
         bp = r.best_params('val_acc')[0]
         p = {
             'epochs': int(bp[0]),
             'batch_size': 32,
             #'dropout_rate': bp[2]
         }
-        history, model = create_dense_model(features.train, labels.train, features.test, labels.test, p)
-        model.save(test_dir+'/exported_models/conv.h5')
-        model2 = keras.models.load_model(test_dir+'/exported_models/conv.h5',
+        history, model = create_conv_model(features.train, labels.train, features.test, labels.test, p)
+        model.save(os.path.join(TEST_DIR,'/exported_models/conv.h5'))
+        model2 = keras.models.load_model(os.path.join(TEST_DIR,'/exported_models/conv.h5'),
               custom_objects={'EnforceNeg':EnforceNeg})
  
         predictions = model2.predict(features.val[:2])
@@ -105,10 +106,11 @@ class TestLrp(object):
 
 
     @pytest.mark.run(after='test_with_optimal_params')
-    def test_lrp_innvestigate_analysis(self, test_dir, features):
+    def test_lrp_innvestigate_analysis(self, features):
         """ Tests the LRP result on our best model
         """
-        model = load_model(test_dir+'/exported_models/conv.h5', custom_objects={'EnforceNeg':EnforceNeg})
+
+        model = load_model(os.path.join(TEST_DIR,'/exported_models/conv.h5'), custom_objects={'EnforceNeg':EnforceNeg})
         model_wo_sm = iutils.keras.graph.model_wo_softmax(model)
        
         # Creating an analyzer

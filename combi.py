@@ -4,7 +4,8 @@ import numpy as np
 from sklearn import preprocessing as pp, svm 
 from helpers import moving_average, chi_square, string_to_featmat
 from matplotlib import pyplot as plt
-
+from tqdm import tqdm
+import math
 
 def compute_top_k_indices(data, labels, filter_window_size, top_k , p):
     # Run Combi-Method and identify top_k best SNPs
@@ -53,3 +54,17 @@ def combi_method(data, labels, pnorm_feature_scaling, svm_rep, Cs, p, classy, fi
 
     return top_indices_sorted, pvalues
   
+
+def permuted_combi_method(data, labels, n_permutations, alpha, n_pvalues, *args):
+    min_pvalues = np.zeros(n_permutations)
+    for i in tqdm(range(n_permutations)):
+
+        permuted_labels = np.random.permutation(labels)
+        indices, pvalues = combi_method(data, permuted_labels, args)
+        min_pvalue = pvalues.min()
+        min_pvalues[i] = min_pvalue
+    sorted_min_pvalues = np.sort(min_pvalues)
+
+    # Alpha percentile of sorted p-values
+    t_star = sorted_min_pvalues[math.ceil(n_permutations*alpha)]
+    return t_star
