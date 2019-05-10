@@ -39,15 +39,15 @@ def sanitize_chromosome(chromosome):
     return chrom_valid
 
 
-def generate_crohn_mat(root_path=DATA_DIR, c=6, n_replication=20, group_size=300, n_info_snps=20, n_noise_snps=10000):
+def generate_crohn_mat(root_path=DATA_DIR,prefix="syn", c=6, n_replication=20, group_size=300, n_info_snps=20, n_noise_snps=10000):
 
     try:
-        os.remove(os.path.join(root_path, 'syn_data.txt'))
+        os.remove(os.path.join(root_path, prefix+'_data.txt'))
     except FileNotFoundError:
         pass
 
     try:
-        os.remove(os.path.join(root_path, 'syn_labels.txt'))
+        os.remove(os.path.join(root_path, prefix+'_labels.txt'))
 
     except FileNotFoundError:
         pass
@@ -85,7 +85,7 @@ def generate_crohn_mat(root_path=DATA_DIR, c=6, n_replication=20, group_size=300
             pass
         else:
             # Generate Informative  SNPs file
-            with open(os.path.join(root_path, 'syn_data.txt'), 'a') as file:
+            with open(os.path.join(root_path, prefix+'_data.txt'), 'a') as file:
                 for i in tqdm(range(n_indiv)):
                     for j in range(n_info_snps+n_noise_snps):
                         all1 = data[i, j, 0]
@@ -111,10 +111,10 @@ def generate_crohn_mat(root_path=DATA_DIR, c=6, n_replication=20, group_size=300
             random_vector = np.random.uniform(size=n_indiv)
             labels = np.where(probabilities > random_vector, "1", "-1")
 
-            with open(os.path.join(root_path, 'syn_labels.txt'), 'a') as file:
+            with open(os.path.join(root_path, prefix+'_labels.txt'), 'a') as file:
                 for label in tqdm(labels):
                     file.write(label+"\n")
-    return os.path.join(root_path, 'syn_data.txt'), os.path.join(root_path, 'syn_labels.txt')
+    return os.path.join(root_path, prefix+'_data.txt'), os.path.join(root_path, prefix+'_labels.txt')
 
 
 def string_to_featmat(data, data_type_to_be_returned='double', embedding_type='2d'):
