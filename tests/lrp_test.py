@@ -5,6 +5,7 @@ import innvestigate
 import innvestigate.utils as iutils
 import keras
 import matplotlib
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pytest
@@ -30,6 +31,7 @@ from tests.conftest import seed
 @pytest.mark.incremental
 class TestLrp(object):
     
+
     def test_talos_hpopt(self, features, labels):
         """Performs Hyperparameters Optimization
         """  
@@ -37,7 +39,7 @@ class TestLrp(object):
         p = {
             'epochs': (1,100,20),
             #'dropout_rate': (0.0,0.5, 5),
-            'batch_size': (32, 200,50)
+            'batch_size': [32]
         }
     
         s = talos.Scan(
@@ -48,13 +50,14 @@ class TestLrp(object):
             dataset_name= os.path.join(TALOS_OUTPUT_DIR, "syn_wtcc"), 
             x_val=features.test,
             y_val=labels.test,
-            grid_downsample=0.1,
+            #grid_downsample=0.1,
             experiment_no='conv',
             seed=seed)
 
         # K Fold evaluation on validation set for the best model
         scores = Evaluate(s).evaluate(features.val,labels.val, folds = 3, metric='val_acc', print_out=True)
-        assert np.mean(scores) > 0.70
+        assert np.mean(scores) > 0.7
+        assert np.mean(scores) < 1.0
         
 
     def test_with_optimal_params(self, features, labels):

@@ -25,8 +25,8 @@ class Features:
 # Test size = dataset_size * TEST_PERCENTAGE = 20%
 # Train size = dataset_size * (1-TEST_PERCENTAGE) * (1-VAL_PERCENTAGE) = 64 %
 # Val size = 16%
-VAL_PERCENTAGE = 0.20
-TEST_PERCENTAGE = 0.20
+VAL_PERCENTAGE = 0.0
+TEST_PERCENTAGE = 0.50
 skiprows = 0
 x_train = None
 x_test = None
@@ -43,21 +43,17 @@ seed = 666
 
 
 
-with open(os.path.join(DATA_DIR,'light_data.txt'), 'r') as d, open(os.path.join(DATA_DIR,'light_labels.txt'), 'r') as l:
+with open(os.path.join(DATA_DIR,'syn_data.txt'), 'r') as d, open(os.path.join(DATA_DIR,'syn_labels.txt'), 'r') as l:
     print('STARTING DATA PARSING...')
     start_time = time()
     raw_labels_ = np.loadtxt(l, dtype=np.int8, skiprows=skiprows)
     raw_data_ = np.loadtxt(d, np.chararray, skiprows=skiprows)
     y_all = to_categorical(raw_labels_)
-    x_all = string_to_featmat(raw_data_, embedding_type='2d')
-    x_train, x_test, y_train, y_test = train_test_split(
-        x_all, y_all, test_size=TEST_PERCENTAGE, random_state=np.random.RandomState(seed))
-    x_train, x_val, y_train, y_val = train_test_split(
-        x_train, y_train, test_size=VAL_PERCENTAGE,  random_state=np.random.RandomState(seed))
-    print("FIXTURES SIZES: train: {}; test: {}; val:{}".format(
-        x_train.shape[0], x_test.shape[0], x_test.shape[0]))
+    x_all = string_to_featmat(raw_data_, embedding_type='3d')
+    x_, x_test, y_, y_test = train_test_split(x_all, y_all, test_size=TEST_PERCENTAGE, random_state=np.random.RandomState(seed))
+    x_train, x_val, y_train, y_val = train_test_split(x_, y_, test_size=VAL_PERCENTAGE,  random_state=np.random.RandomState(seed))
+    print("FIXTURES SIZES: train: {}; test: {}; val:{}".format(x_train.shape[0], x_test.shape[0], x_val.shape[0]))
     print("TIME ELASPED DURING DATA PARSING:{}".format(time()-start_time))
-
 
 
 
