@@ -38,9 +38,9 @@ class TestLrp(object):
         """  
 
         p = {
-            'epochs': (1,5,5),
-            #'dropout_rate': (0.0,0.5, 5),
-            'batch_size': [32],
+            'epochs': (1,10,10),
+            'dropout_rate': (0.0,0.5, 5),
+            'batch_size': [32,64],
             'feature_matrix_path': [os.path.join(DATA_DIR,'3d_feature_matrix.npy')],
             'y_path':[os.path.join(DATA_DIR,'syn_labels.txt')],
             'verbose':[1]

@@ -9,6 +9,7 @@ from keras.constraints import MaxNorm, UnitNorm
 from helpers import EnforceNeg, count_lines
 import numpy as np
 import os
+import multiprocessing
 
 
 def create_dense_model(x_train, y_train, x_test, y_test, params):
@@ -65,35 +66,9 @@ def create_conv_model(x_train_indices, y_train_indices, x_test_indices, y_test_i
                      bias_initializer=Constant(value=-0.0),
                      bias_constraint=EnforceNeg()))  # n, d', 3
     model.add(Activation('relu'))
+    model.add(Dropout(rate=params['dropout_rate']))
     model.add(AvgPool1D(pool_size=4, padding='valid'))  # n, d''/pool_size, 5
 
-    model.add(Conv1D(filters=1,
-                     kernel_size=3,
-                     strides=1,
-                     padding='valid',
-                     bias_initializer=Constant(value=-0.0),
-                     bias_constraint=EnforceNeg()))  # n, d', 3
-    model.add(Activation('relu'))
-    model.add(AvgPool1D(pool_size=8, padding='valid'))  # n, d''/pool_size, 5
-
-    model.add(Conv1D(filters=1,
-                     kernel_size=3,
-                     strides=1,
-                     padding='valid',
-                     bias_initializer=Constant(value=-0.0),
-                     bias_constraint=EnforceNeg()))  # n, d', 3
-    model.add(Activation('relu'))
-    model.add(AvgPool1D(pool_size=8, padding='valid'))  # n, d''/pool_size, 5
-
-    model.add(Conv1D(filters=1,
-                     kernel_size=3,
-                     strides=1,
-                     padding='valid',
-                     bias_initializer=Constant(value=-0.0),
-                     bias_constraint=EnforceNeg()))  # n, d', 3
-    model.add(Activation('relu'))
-    model.add(AvgPool1D(pool_size=8, padding='valid'))
-    
     model.add(Flatten())  # n, d''/pool_size * 5
 
     model.add(Dense(units=2,
