@@ -33,9 +33,10 @@ class Indices:
         self.val = val
 
 
-
-TRAIN_PERCENTAGE = 0.70
-TEST_PERCENTAGE = 0.15
+# Train on 40% of data, test on 10%
+# So that 5-Fold validation computes results for the same train/test sizes
+TRAIN_PERCENTAGE = 0.40
+TEST_PERCENTAGE = 0.10
 VAL_PERCENTAGE = 1 - TRAIN_PERCENTAGE - TEST_PERCENTAGE
 seed = 666
 np.random.seed(seed)

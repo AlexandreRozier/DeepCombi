@@ -65,6 +65,7 @@ def create_conv_model(x_train_indices, y_train_indices, x_test_indices, y_test_i
 
                      bias_initializer=Constant(value=-0.0),
                      bias_constraint=EnforceNeg()))  # n, d', 3
+    model.add(BatchNormalization())
     model.add(Activation('relu'))
     model.add(Dropout(rate=params['dropout_rate']))
     model.add(AvgPool1D(pool_size=4, padding='valid'))  # n, d''/pool_size, 5
@@ -103,7 +104,7 @@ def create_conv_model(x_train_indices, y_train_indices, x_test_indices, y_test_i
                                   verbose=params['verbose'],
                                   callbacks=[
                                       # tensorboardCb,
-                                      # earlyStoppingCb
+                                      earlyStoppingCb
                                   ])
 
     print("NUMBER OF PARAMETERS: {}".format(model.count_params()))
@@ -158,21 +159,14 @@ class DataGenerator(keras.utils.Sequence):
         
         counter = 0
         with open(self.y_path, 'r') as fp:
-            for index in indices:
-
-                for line_nb, line in enumerate(fp):
-                    if line_nb == index:
-                        
-                        if(int(line)<0):
-                            y[counter] = 0
-                        else:
-                            y[counter] = 1
-                        counter+=1 
+            for line_nb, line in enumerate(fp):
+                    if counter >= self.batch_size:
+                        # Found every index
                         break
-
-                    if line_nb > index:
-                        raise Exception("PASSED INDEX!")    
-                fp.seek(0)  
+                    if line_nb == indices[counter]:
+                        y[counter] = 0 if (int(line)<0) else 1
+                        counter+=1 
+  
 
         assert X.shape[0] == self.batch_size
         assert y.shape[0] == self.batch_size

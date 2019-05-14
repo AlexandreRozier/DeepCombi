@@ -38,7 +38,7 @@ class TestLrp(object):
         """  
 
         p = {
-            'epochs': (1,10,10),
+            'epochs': (1,20,15),
             'dropout_rate': (0.0,0.5, 5),
             'batch_size': [32,64],
             'feature_matrix_path': [os.path.join(DATA_DIR,'3d_feature_matrix.npy')],
@@ -74,16 +74,18 @@ class TestLrp(object):
         print("Using hyperparameters: {}".format(bp))
         p = {
             'epochs': int(bp[0]),
-            'batch_size': bp[4],
-            'feature_matrix_path': os.path.join(DATA_DIR,'3d_feature_matrix.npy'),
-            'y_path':os.path.join(DATA_DIR,'syn_labels.txt'),
+            'batch_size': int(bp[1]),
+            'dropout_rate':float(bp[2]),
+            'feature_matrix_path': bp[3],
+            'y_path':bp[4],
             'verbose':[1]
         }
 
         # K-fold cross validation on validation set 
-        kfold = KFold(n_splits=2, shuffle=True, random_state=seed)
+        kfold = KFold(n_splits=5, shuffle=True, random_state=seed)
         val_acc_scores = []
         for train, test in tqdm(kfold.split(indices.val)):
+            print("Runnin K-Fold C-V on: {} Train, {} Test".format(len(train), len(test)))
             history, model = create_conv_model(indices.val[train], indices.val[train], indices.val[test], indices.val[test], p)
             val_acc_scores.append(history.history['val_acc'])
         print("Params: {}; Mean Accuracy: {}; Std: {}".format(bp, np.mean(val_acc_scores), np.std(val_acc_scores)))
