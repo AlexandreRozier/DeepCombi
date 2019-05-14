@@ -1,10 +1,12 @@
+import keras
+import math
 from keras import callbacks
-from keras.layers import Dense, Dropout, Conv1D, Flatten, Activation, AvgPool1D
+from keras.layers import Dense, Dropout, Conv1D, Flatten, Activation, AvgPool1D, BatchNormalization
 from keras.models import Sequential, load_model
 from keras.utils import to_categorical
 from keras.initializers import TruncatedNormal, Constant
 from keras.constraints import MaxNorm, UnitNorm
-from helpers import EnforceNeg
+from helpers import EnforceNeg, count_lines
 import numpy as np
 import os
 
@@ -43,7 +45,7 @@ def create_dense_model(x_train, y_train, x_test, y_test, params):
                         batch_size=params['batch_size'],
                         verbose=0,
                         callbacks=[
-                            tensorboardCb,
+                            # tensorboardCb,
                             # earlyStoppingCb
                         ],
                         validation_data=[x_test, y_test])
@@ -51,19 +53,47 @@ def create_dense_model(x_train, y_train, x_test, y_test, params):
     return history, model
 
 
-def create_conv_model(x_train, y_train, x_test, y_test, params):
+def create_conv_model(x_train_indices, y_train_indices, x_test_indices, y_test_indices, params):
 
     model = Sequential()
     model.add(Conv1D(filters=1,
-                     kernel_size=35,
+                     kernel_size=3,
+                     strides=1,
+                     padding='valid',
+                     input_shape=(10020, 3),
+
+                     bias_initializer=Constant(value=-0.0),
+                     bias_constraint=EnforceNeg()))  # n, d', 3
+    model.add(Activation('relu'))
+    model.add(AvgPool1D(pool_size=4, padding='valid'))  # n, d''/pool_size, 5
+
+    model.add(Conv1D(filters=1,
+                     kernel_size=3,
                      strides=1,
                      padding='valid',
                      bias_initializer=Constant(value=-0.0),
                      bias_constraint=EnforceNeg()))  # n, d', 3
     model.add(Activation('relu'))
+    model.add(AvgPool1D(pool_size=8, padding='valid'))  # n, d''/pool_size, 5
 
-    model.add(AvgPool1D(pool_size=5, padding='valid'))  # n, d''/pool_size, 5
+    model.add(Conv1D(filters=1,
+                     kernel_size=3,
+                     strides=1,
+                     padding='valid',
+                     bias_initializer=Constant(value=-0.0),
+                     bias_constraint=EnforceNeg()))  # n, d', 3
+    model.add(Activation('relu'))
+    model.add(AvgPool1D(pool_size=8, padding='valid'))  # n, d''/pool_size, 5
 
+    model.add(Conv1D(filters=1,
+                     kernel_size=3,
+                     strides=1,
+                     padding='valid',
+                     bias_initializer=Constant(value=-0.0),
+                     bias_constraint=EnforceNeg()))  # n, d', 3
+    model.add(Activation('relu'))
+    model.add(AvgPool1D(pool_size=8, padding='valid'))
+    
     model.add(Flatten())  # n, d''/pool_size * 5
 
     model.add(Dense(units=2,
@@ -82,17 +112,95 @@ def create_conv_model(x_train, y_train, x_test, y_test, params):
     earlyStoppingCb = callbacks.EarlyStopping(
         patience=6, monitor='val_acc')
 
+    training_generator = DataGenerator(x_train_indices, y_train_indices,
+                                       feature_matrix_path=params['feature_matrix_path'],
+                                       y_path=params['y_path'])
+    testing_generator = DataGenerator(x_test_indices, y_test_indices,
+                                      feature_matrix_path=params['feature_matrix_path'],
+                                      y_path=params['y_path'])
+
     # Model fitting
-    history = model.fit(x_train, y_train,
-                        epochs=params['epochs'],
-                        batch_size=params['batch_size'],
-                        verbose=0,
-                        callbacks=[
-                            tensorboardCb,
-                            earlyStoppingCb
-                        ],
-                        validation_data=[x_test, y_test])
+    history = model.fit_generator(generator=training_generator,
+                                  validation_data=testing_generator,
+                                  use_multiprocessing=True,
+                                  workers=6,
+                                  epochs=params['epochs'],
+                                  verbose=params['verbose'],
+                                  callbacks=[
+                                      # tensorboardCb,
+                                      # earlyStoppingCb
+                                  ])
 
     print("NUMBER OF PARAMETERS: {}".format(model.count_params()))
 
     return history, model
+
+
+
+class DataGenerator(keras.utils.Sequence):
+    """ This generator streams batches of data to our models. All they need is a set of indexes to extract from the 
+        SAVED FEATURE MATRIX.
+    """
+    
+
+    def __init__(self, x_indexes, labels_indexes,feature_matrix_path, y_path,  batch_size=32, dim=(10020,3), shuffle=True):
+        
+        self.x_path = feature_matrix_path
+        self.y_path = y_path
+        self.dim = dim
+        self.batch_size = batch_size
+        self.labels_indexes = labels_indexes
+        self.x_indexes = x_indexes
+        self.shuffle = shuffle
+        self.on_epoch_end()
+
+    def __len__(self):
+        'Denotes the number of batches per epoch'
+        return math.floor(len(self.x_indexes) / self.batch_size)
+
+    def __getitem__(self, index):
+        # Generate indexes for each batch
+        indexes = self.x_indexes[index*self.batch_size:(index+1)*self.batch_size]
+
+        return self.__data_generation(indexes)
+
+    def on_epoch_end(self):
+        'Updates indexes after each epoch'
+        if self.shuffle:
+            np.random.shuffle(self.x_indexes)
+            self.labels_indexes = self.x_indexes
+        
+
+    def __data_generation(self, indices):
+        'Generates data from SAVED FEATURE MATRIX containing batch_size samples' # X : (n_samples, *dim, n_channels)
+        # Initialization
+        assert len(indices) == self.batch_size
+        y = np.empty((self.batch_size), dtype=int)
+        # Generate data
+        indices = np.sort(indices) 
+        X = np.load(self.x_path, mmap_mode='r') # Check this out !
+        X = np.take(X, indices, axis=0)
+        
+        counter = 0
+        with open(self.y_path, 'r') as fp:
+            for index in indices:
+
+                for line_nb, line in enumerate(fp):
+                    if line_nb == index:
+                        
+                        if(int(line)<0):
+                            y[counter] = 0
+                        else:
+                            y[counter] = 1
+                        counter+=1 
+                        break
+
+                    if line_nb > index:
+                        raise Exception("PASSED INDEX!")    
+                fp.seek(0)  
+
+        assert X.shape[0] == self.batch_size
+        assert y.shape[0] == self.batch_size
+        assert counter == self.batch_size
+        return X, keras.utils.to_categorical(y, num_classes=2)
+

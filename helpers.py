@@ -5,9 +5,10 @@ import sklearn.preprocessing as pp
 from keras import backend as K
 from keras.constraints import Constraint
 import os
+import io
 from tqdm import tqdm
 import h5py
-
+import keras
 from parameters_complete import DATA_DIR
 
 from tqdm import tqdm
@@ -39,7 +40,10 @@ def sanitize_chromosome(chromosome):
     return chrom_valid
 
 
-def generate_crohn_mat(root_path=DATA_DIR,prefix="syn", c=6, n_replication=20, group_size=300, n_info_snps=20, n_noise_snps=10000):
+def generate_syn_genotypes(root_path=DATA_DIR,prefix="syn", c=6, n_replication=20, group_size=300, n_info_snps=20, n_noise_snps=10000):
+    
+    """ Generate synthetic genotypes and labels by removeing all minor allels with low frequency, and unmapped SNPs.
+    """
 
     try:
         os.remove(os.path.join(root_path, prefix+'_data.txt'))
@@ -48,7 +52,6 @@ def generate_crohn_mat(root_path=DATA_DIR,prefix="syn", c=6, n_replication=20, g
 
     try:
         os.remove(os.path.join(root_path, prefix+'_labels.txt'))
-
     except FileNotFoundError:
         pass
 
@@ -110,14 +113,34 @@ def generate_crohn_mat(root_path=DATA_DIR,prefix="syn", c=6, n_replication=20, g
                 (1+np.exp(-c * (nb_major_allels - np.median(nb_major_allels)))), -1)
             random_vector = np.random.uniform(size=n_indiv)
             labels = np.where(probabilities > random_vector, "1", "-1")
-
+            assert data.shape[0] == labels.shape[0]
             with open(os.path.join(root_path, prefix+'_labels.txt'), 'a') as file:
                 for label in tqdm(labels):
                     file.write(label+"\n")
     return os.path.join(root_path, prefix+'_data.txt'), os.path.join(root_path, prefix+'_labels.txt')
 
 
-def string_to_featmat(data, data_type_to_be_returned='double', embedding_type='2d'):
+
+
+
+
+
+    
+def string_to_featmat(data, data_type_to_be_returned='double', embedding_type='2d', overwrite=False):
+    """ Transforms numpy matrix of chars to a tensor of features 
+    """
+
+    filename = os.path.join(DATA_DIR,embedding_type +'_feature_matrix.npy')
+
+    # Check if feature matrix has already been generated
+    if not overwrite:
+        try:
+            feature_matrix = np.load(filename)
+            print("Loading feature matrix from disk")
+            return feature_matrix
+        except FileNotFoundError as identifier:
+            print("Feature matrix at {} not found, generating new one".format(filename))
+            pass
 
     ###  Global Parameters   ###
     (n_subjects, num_snp3) = data.shape
@@ -185,6 +208,8 @@ def string_to_featmat(data, data_type_to_be_returned='double', embedding_type='2
         pass
     elif(embedding_type == '3d'):
         feature_map = np.reshape(feature_map, (n_subjects, num_snp3, 3))
+
+    np.save(filename, feature_map)
 
     return feature_map
 

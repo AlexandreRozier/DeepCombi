@@ -5,7 +5,11 @@ from helpers import string_to_featmat
 from sklearn.model_selection import train_test_split
 import numpy as np
 import os
+import math
 from time import time
+from helpers import count_lines
+
+
 class Label:
     def __init__(self, train, test, val, all):
         self.test = test
@@ -22,71 +26,82 @@ class Features:
         self.all = all
 
 
-# Test size = dataset_size * TEST_PERCENTAGE = 20%
-# Train size = dataset_size * (1-TEST_PERCENTAGE) * (1-VAL_PERCENTAGE) = 64 %
-# Val size = 16%
-VAL_PERCENTAGE = 0.0
-TEST_PERCENTAGE = 0.50
-skiprows = 0
-x_train = None
-x_test = None
-x_val = None
-x_all = None
-y_train = None
-y_test = None
-y_val = None
-y_all = None
+class Indices:
+    def __init__(self, train, test, val):
+        self.train = train
+        self.test = test
+        self.val = val
 
-raw_data_ = None
-raw_labels_ = None
+
+
+TRAIN_PERCENTAGE = 0.70
+TEST_PERCENTAGE = 0.15
+VAL_PERCENTAGE = 1 - TRAIN_PERCENTAGE - TEST_PERCENTAGE
 seed = 666
+np.random.seed(seed)
+random_state = np.random.RandomState(seed)
+skiprows = 0
+
+features_path = os.path.join(DATA_DIR, 'syn_data.txt')
+labels_path = os.path.join(DATA_DIR, 'syn_labels.txt')
 
 
-
-with open(os.path.join(DATA_DIR,'syn_data.txt'), 'r') as d, open(os.path.join(DATA_DIR,'syn_labels.txt'), 'r') as l:
-    print('STARTING DATA PARSING...')
-    start_time = time()
-    raw_labels_ = np.loadtxt(l, dtype=np.int8, skiprows=skiprows)
-    raw_data_ = np.loadtxt(d, np.chararray, skiprows=skiprows)
-    y_all = to_categorical(raw_labels_)
-    x_all = string_to_featmat(raw_data_, embedding_type='3d')
-    x_, x_test, y_, y_test = train_test_split(x_all, y_all, test_size=TEST_PERCENTAGE, random_state=np.random.RandomState(seed))
-    x_train, x_val, y_train, y_val = train_test_split(x_, y_, test_size=VAL_PERCENTAGE,  random_state=np.random.RandomState(seed))
-    print("FIXTURES SIZES: train: {}; test: {}; val:{}".format(x_train.shape[0], x_test.shape[0], x_val.shape[0]))
-    print("TIME ELASPED DURING DATA PARSING:{}".format(time()-start_time))
-
-
-
-
-@pytest.fixture(scope = "module")
+@pytest.fixture(scope="module")
 def raw_labels():
-    return raw_labels_
+    with open(labels_path, 'r') as l:
+        return np.loadtxt(l, dtype=np.int8, skiprows=skiprows)
 
-@pytest.fixture(scope = "module")
+
+@pytest.fixture(scope="module")
 def raw_data():
-    return raw_data_
+    with open(features_path, 'r') as d:
+        return np.loadtxt(d, np.chararray, skiprows=skiprows)
 
 
-@pytest.fixture(scope = "module")
-def labels():
-    return Label(y_train, y_test, y_val, y_all)
+@pytest.fixture(scope="module")
+def f_and_l(raw_data, raw_labels):
+    y_all = to_categorical(raw_labels)
+    x_all = string_to_featmat(raw_data, embedding_type='3d')
+    x_, x_test, y_, y_test = train_test_split(
+        x_all, y_all, test_size=TEST_PERCENTAGE, random_state=random_state)
+    x_train, x_val, y_train, y_val = train_test_split(
+        x_, y_, test_size=math.floor(VAL_PERCENTAGE/(1-TEST_PERCENTAGE)),  random_state=random_state)
+
+    print('Dataset sizes: Train: {}; Test: {}; Validation: {}'.format(len(x_train),len(x_test), len(x_val)))
+    return {
+        'features':Features(x_train, x_test, x_val, x_all), 
+        'labels':Label(y_train, y_test, y_val, y_all)
+    }
 
 
-@pytest.fixture(scope = "module")
-def features():
-    return Features(x_train, x_test, x_val, x_all)
 
+
+@pytest.fixture(scope="module")
+def indices():
+    n1 = count_lines(features_path)-1  # Don't forget the extra \n line
+    n2 = count_lines(labels_path)-1
+    assert n1 == n2
+
+    indices_ = np.arange(n1)
+    np.random.shuffle(indices_)
+    train_indices = indices_[:math.floor(n1*TRAIN_PERCENTAGE)]
+    test_indices = indices_[math.floor(
+        n1*TRAIN_PERCENTAGE):math.floor(n1*(TRAIN_PERCENTAGE + TEST_PERCENTAGE))]
+    val_indices = indices_[math.floor(n1*(TRAIN_PERCENTAGE + TEST_PERCENTAGE)):]
+
+    print('Dataset sizes: Train: {}; Test: {}; Validation: {}'.format(len(train_indices),len(test_indices), len(val_indices)))
+    return Indices(train_indices, test_indices, val_indices)
 
 
 def pytest_runtest_makereport(item, call):
     if "incremental" in item.keywords:
         if call.excinfo is not None:
-            parent=item.parent
-            parent._previousfailed=item
+            parent = item.parent
+            parent._previousfailed = item
 
 
 def pytest_runtest_setup(item):
     if "incremental" in item.keywords:
-        previousfailed=getattr(item.parent, "_previousfailed", None)
+        previousfailed = getattr(item.parent, "_previousfailed", None)
         if previousfailed is not None:
             pytest.xfail("previous test failed (%s)" % previousfailed.name)

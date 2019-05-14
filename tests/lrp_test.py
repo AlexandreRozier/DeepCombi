@@ -9,6 +9,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import pytest
+from tqdm import tqdm
 
 from keras.utils import plot_model
 from keras import callbacks
@@ -24,7 +25,7 @@ keras.constraints.EnforceNeg = EnforceNeg # Absolutely crucial
 
 from parameters_complete import (Cs, classy, filter_window_size,
                                  p_pnorm_filter, pnorm_feature_scaling,
-                                 svm_rep, TEST_DIR, TALOS_OUTPUT_DIR)
+                                 svm_rep, TEST_DIR, TALOS_OUTPUT_DIR, DATA_DIR)
 from models import create_conv_model, create_dense_model
 from tests.conftest import seed
 
@@ -32,35 +33,39 @@ from tests.conftest import seed
 class TestLrp(object):
     
 
-    def test_talos_hpopt(self, features, labels):
+    def test_talos_hpopt(self, indices):
         """Performs Hyperparameters Optimization
         """  
 
         p = {
-            'epochs': (1,100,20),
+            'epochs': (1,5,5),
             #'dropout_rate': (0.0,0.5, 5),
-            'batch_size': [32]
+            'batch_size': [32],
+            'feature_matrix_path': [os.path.join(DATA_DIR,'3d_feature_matrix.npy')],
+            'y_path':[os.path.join(DATA_DIR,'syn_labels.txt')],
+            'verbose':[1]
         }
     
+        
         s = talos.Scan(
-            features.train, 
-            labels.train, 
+            indices.train, 
+            indices.train, 
             model=create_conv_model, 
             params = p, 
             dataset_name= os.path.join(TALOS_OUTPUT_DIR, "syn_wtcc"), 
-            x_val=features.test,
-            y_val=labels.test,
+            x_val=indices.test,
+            y_val=indices.test,
             #grid_downsample=0.1,
             experiment_no='conv',
             seed=seed)
 
         # K Fold evaluation on validation set for the best model
-        scores = Evaluate(s).evaluate(features.val,labels.val, folds = 3, metric='val_acc', print_out=True)
-        assert np.mean(scores) > 0.7
-        assert np.mean(scores) < 1.0
+        #scores = Evaluate(s).evaluate(x_val_indexes,y_val_indexes, folds = 3, metric='val_acc', print_out=True)
+        #assert np.mean(scores) > 0.7
+        #assert np.mean(scores) < 1.0
         
 
-    def test_with_optimal_params(self, features, labels):
+    def test_with_optimal_params(self, indices):
         """ Trains and validate through KFold a model with the optimal hyperparams previously exhumed
         """
 
@@ -69,15 +74,17 @@ class TestLrp(object):
         print("Using hyperparameters: {}".format(bp))
         p = {
             'epochs': int(bp[0]),
-            'batch_size': int(bp[1]),
-            #'dropout_rate': bp[2]
+            'batch_size': bp[4],
+            'feature_matrix_path': os.path.join(DATA_DIR,'3d_feature_matrix.npy'),
+            'y_path':os.path.join(DATA_DIR,'syn_labels.txt'),
+            'verbose':[1]
         }
 
         # K-fold cross validation on validation set 
-        kfold = KFold(n_splits=3, shuffle=True, random_state=seed)
+        kfold = KFold(n_splits=2, shuffle=True, random_state=seed)
         val_acc_scores = []
-        for train, test in kfold.split(features.val):
-            history, model = create_conv_model(features.val[train], labels.val[train], features.val[test], labels.val[test], p)
+        for train, test in tqdm(kfold.split(indices.val)):
+            history, model = create_conv_model(indices.val[train], indices.val[train], indices.val[test], indices.val[test], p)
             val_acc_scores.append(history.history['val_acc'])
         print("Params: {}; Mean Accuracy: {}; Std: {}".format(bp, np.mean(val_acc_scores), np.std(val_acc_scores)))
         
@@ -85,33 +92,35 @@ class TestLrp(object):
         model.save(os.path.join(TEST_DIR,'exported_models','conv.h5'))
 
 
-    def test_save_model(self, features, labels):
-        """ Tests if model saves correctly with custom Constraints
-        """
+    # def test_save_model(self, f_and_l, indices, tmp_path):
+    #     """ Tests if model saves correctly with custom Constraints
+    #     """
 
-        r = Reporting(os.path.join(TALOS_OUTPUT_DIR,'syn_wtcc_conv.csv'))
-        bp = r.best_params('val_acc')[0]
-        p = {
-            'epochs': int(bp[0]),
-            'batch_size': 32,
-            #'dropout_rate': bp[2]
-        }
-        history, model = create_conv_model(features.train, labels.train, features.test, labels.test, p)
-        model.save(os.path.join(TEST_DIR,'exported_models','conv.h5'))
-        model2 = keras.models.load_model(os.path.join(TEST_DIR,'exported_models','conv.h5'),
-              custom_objects={'EnforceNeg':EnforceNeg})
+    #     r = Reporting(os.path.join(TALOS_OUTPUT_DIR,'syn_wtcc_conv.csv'))
+    #     bp = r.best_params('val_acc')[0]
+    #     p = {
+    #         'epochs': int(bp[0]),
+    #         'batch_size': bp[4],
+    #         'feature_matrix_path': os.path.join(DATA_DIR,'3d_feature_matrix.npy'),
+    #         'y_path':os.path.join(DATA_DIR,'syn_labels.txt'),
+    #         'verbose':[1]
+    #     }
+    #     history, model = create_conv_model(indices.train, indices.train, indices.test, indices.test, p)
+    #     model.save(os.path.join(tmp_path,'conv.h5'))
+    #     model2 = keras.models.load_model(os.path.join(tmp_path,'conv.h5'),
+    #           custom_objects={'EnforceNeg':EnforceNeg})
  
-        predictions = model2.predict(features.val[:2])
-        ground_truth = labels.val[:2]
-        np.testing.assert_allclose(predictions, ground_truth, atol=1e-01)
+    #     predictions = model2.predict(f_and_l['features'][indices.val][:2])
+    #     ground_truth = f_and_l['labels'][indices.val][:2]
+    #     np.testing.assert_allclose(predictions, ground_truth, atol=1e-01)
 
 
 
     @pytest.mark.run(after='test_with_optimal_params')
-    def test_lrp_innvestigate_analysis(self, features):
+    def test_lrp_innvestigate_analysis(self, f_and_l):
         """ Tests the LRP result on our best model
         """
-
+        features = f_and_l['features']
         model = load_model(os.path.join(TEST_DIR,'exported_models','conv.h5'), custom_objects={'EnforceNeg':EnforceNeg})
         model_wo_sm = iutils.keras.graph.model_wo_softmax(model)
        
