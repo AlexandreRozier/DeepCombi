@@ -48,7 +48,7 @@ labels_path = os.path.join(DATA_DIR, 'syn_labels.txt')
 
 
 @pytest.fixture(scope="module")
-def raw_labels():
+def raw_labels():   
     with open(labels_path, 'r') as l:
         return np.loadtxt(l, dtype=np.int8, skiprows=skiprows)
 

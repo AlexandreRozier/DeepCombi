@@ -38,12 +38,13 @@ class TestLrp(object):
         """  
 
         p = {
-            'epochs': (1,20,15),
-            'dropout_rate': (0.0,0.5, 5),
+            'epochs': (1,10,10),
+            'dropout_rate': (0.1,0.5, 3),
             'batch_size': [32,64],
             'feature_matrix_path': [os.path.join(DATA_DIR,'3d_feature_matrix.npy')],
             'y_path':[os.path.join(DATA_DIR,'syn_labels.txt')],
-            'verbose':[1]
+            'verbose':[1],
+            'use_normalization':[True, False],
         }
     
         
@@ -55,7 +56,8 @@ class TestLrp(object):
             dataset_name= os.path.join(TALOS_OUTPUT_DIR, "syn_wtcc"), 
             x_val=indices.test,
             y_val=indices.test,
-            #grid_downsample=0.1,
+            grid_downsample=0.1,
+            random_method='uniform_mersenne',
             experiment_no='conv',
             seed=seed)
 

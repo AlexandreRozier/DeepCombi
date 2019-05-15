@@ -55,20 +55,34 @@ def create_dense_model(x_train, y_train, x_test, y_test, params):
 
 
 def create_conv_model(x_train_indices, y_train_indices, x_test_indices, y_test_indices, params):
-
+    print(params)
     model = Sequential()
-    model.add(Conv1D(filters=1,
+    model.add(Conv1D(filters=1, 
                      kernel_size=3,
                      strides=1,
                      padding='valid',
                      input_shape=(10020, 3),
-
                      bias_initializer=Constant(value=-0.0),
                      bias_constraint=EnforceNeg()))  # n, d', 3
-    model.add(BatchNormalization())
+    if params['use_normalization']:
+        model.add(BatchNormalization())
     model.add(Activation('relu'))
     model.add(Dropout(rate=params['dropout_rate']))
-    model.add(AvgPool1D(pool_size=4, padding='valid'))  # n, d''/pool_size, 5
+    model.add(AvgPool1D(pool_size=2, padding='valid'))  # n, d''/pool_size, 5
+
+    model.add(Conv1D(filters=1,
+                     kernel_size=3,
+                     strides=1,
+                     padding='valid',
+                     bias_initializer=Constant(value=-0.0),
+                     bias_constraint=EnforceNeg()))  # n, d', 3
+    if params['use_normalization']:
+        model.add(BatchNormalization())
+    model.add(Activation('relu'))
+    model.add(Dropout(rate=params['dropout_rate']))
+    model.add(AvgPool1D(pool_size=2, padding='valid'))  # n, d''/pool_size, 5
+
+
 
     model.add(Flatten())  # n, d''/pool_size * 5
 
@@ -82,6 +96,7 @@ def create_conv_model(x_train_indices, y_train_indices, x_test_indices, y_test_i
                   metrics=['accuracy'])
 
     dir_path = os.path.dirname(os.path.realpath(__file__))
+    
     # Callbacks
     tensorboardCb = callbacks.TensorBoard(log_dir=dir_path+'/tb-logs', histogram_freq=0,
                                           write_graph=True, write_images=True)
@@ -103,8 +118,8 @@ def create_conv_model(x_train_indices, y_train_indices, x_test_indices, y_test_i
                                   epochs=params['epochs'],
                                   verbose=params['verbose'],
                                   callbacks=[
-                                      # tensorboardCb,
-                                      earlyStoppingCb
+                                    # tensorboardCb,
+                                    # earlyStoppingCb
                                   ])
 
     print("NUMBER OF PARAMETERS: {}".format(model.count_params()))
@@ -125,14 +140,13 @@ class DataGenerator(keras.utils.Sequence):
         self.y_path = y_path
         self.dim = dim
         self.batch_size = batch_size
-        self.labels_indexes = labels_indexes
         self.x_indexes = x_indexes
         self.shuffle = shuffle
         self.on_epoch_end()
 
     def __len__(self):
         'Denotes the number of batches per epoch'
-        return math.floor(len(self.x_indexes) / self.batch_size)
+        return int(np.floor(len(self.x_indexes) / float(self.batch_size)))
 
     def __getitem__(self, index):
         # Generate indexes for each batch
@@ -144,7 +158,6 @@ class DataGenerator(keras.utils.Sequence):
         'Updates indexes after each epoch'
         if self.shuffle:
             np.random.shuffle(self.x_indexes)
-            self.labels_indexes = self.x_indexes
         
 
     def __data_generation(self, indices):
@@ -168,8 +181,7 @@ class DataGenerator(keras.utils.Sequence):
                         counter+=1 
   
 
-        assert X.shape[0] == self.batch_size
+        assert X.shape == (self.batch_size, *self.dim)
         assert y.shape[0] == self.batch_size
         assert counter == self.batch_size
         return X, keras.utils.to_categorical(y, num_classes=2)
-
