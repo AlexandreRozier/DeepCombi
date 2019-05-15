@@ -113,8 +113,8 @@ def create_conv_model(x_train_indices, y_train_indices, x_test_indices, y_test_i
     # Model fitting
     history = model.fit_generator(generator=training_generator,
                                   validation_data=testing_generator,
-                                  use_multiprocessing=True,
-                                  workers=6,
+                                  use_multiprocessing=False,
+                                  #workers=6,
                                   epochs=params['epochs'],
                                   verbose=params['verbose'],
                                   callbacks=[

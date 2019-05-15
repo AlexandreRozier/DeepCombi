@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pytest
 from tqdm import tqdm
-
+import pandas as pd
 from keras.utils import plot_model
 from keras import callbacks
 from keras.layers import Dense, Dropout, Conv1D, Flatten
@@ -56,32 +56,22 @@ class TestLrp(object):
             dataset_name= os.path.join(TALOS_OUTPUT_DIR, "syn_wtcc"), 
             x_val=indices.test,
             y_val=indices.test,
-            grid_downsample=0.1,
+            grid_downsample=0.5,
             random_method='uniform_mersenne',
             experiment_no='conv',
             seed=seed)
 
-        # K Fold evaluation on validation set for the best model
-        #scores = Evaluate(s).evaluate(x_val_indexes,y_val_indexes, folds = 3, metric='val_acc', print_out=True)
-        #assert np.mean(scores) > 0.7
-        #assert np.mean(scores) < 1.0
         
 
     def test_with_optimal_params(self, indices):
         """ Trains and validate through KFold a model with the optimal hyperparams previously exhumed
         """
 
-        r = Reporting(os.path.join(TALOS_OUTPUT_DIR,'syn_wtcc_conv.csv'))
-        bp = r.best_params('val_acc')[0]
-        print("Using hyperparameters: {}".format(bp))
-        p = {
-            'epochs': int(bp[0]),
-            'batch_size': int(bp[1]),
-            'dropout_rate':float(bp[2]),
-            'feature_matrix_path': bp[3],
-            'y_path':bp[4],
-            'verbose':[1]
-        }
+        #r = Reporting(os.path.join(TALOS_OUTPUT_DIR,'syn_wtcc_conv.csv'))
+        df = pd.read_csv(os.path.join(TALOS_OUTPUT_DIR,'syn_wtcc_conv.csv'))
+        p = df.sort_values(by=['val_acc'],ascending=False)[:1].to_dict('records')[0]
+        print("Using hyperparameters: {}".format(p))
+        
 
         # K-fold cross validation on validation set 
         kfold = KFold(n_splits=5, shuffle=True, random_state=seed)
@@ -90,35 +80,13 @@ class TestLrp(object):
             print("Runnin K-Fold C-V on: {} Train, {} Test".format(len(train), len(test)))
             history, model = create_conv_model(indices.val[train], indices.val[train], indices.val[test], indices.val[test], p)
             val_acc_scores.append(history.history['val_acc'])
-        print("Params: {}; Mean Accuracy: {}; Std: {}".format(bp, np.mean(val_acc_scores), np.std(val_acc_scores)))
+        print("Params: {}; Mean Accuracy: {}; Std: {}".format(p, np.mean(val_acc_scores), np.std(val_acc_scores)))
         
         assert(np.mean(val_acc_scores) > 0.70)
         model.save(os.path.join(TEST_DIR,'exported_models','conv.h5'))
 
 
-    # def test_save_model(self, f_and_l, indices, tmp_path):
-    #     """ Tests if model saves correctly with custom Constraints
-    #     """
-
-    #     r = Reporting(os.path.join(TALOS_OUTPUT_DIR,'syn_wtcc_conv.csv'))
-    #     bp = r.best_params('val_acc')[0]
-    #     p = {
-    #         'epochs': int(bp[0]),
-    #         'batch_size': bp[4],
-    #         'feature_matrix_path': os.path.join(DATA_DIR,'3d_feature_matrix.npy'),
-    #         'y_path':os.path.join(DATA_DIR,'syn_labels.txt'),
-    #         'verbose':[1]
-    #     }
-    #     history, model = create_conv_model(indices.train, indices.train, indices.test, indices.test, p)
-    #     model.save(os.path.join(tmp_path,'conv.h5'))
-    #     model2 = keras.models.load_model(os.path.join(tmp_path,'conv.h5'),
-    #           custom_objects={'EnforceNeg':EnforceNeg})
- 
-    #     predictions = model2.predict(f_and_l['features'][indices.val][:2])
-    #     ground_truth = f_and_l['labels'][indices.val][:2]
-    #     np.testing.assert_allclose(predictions, ground_truth, atol=1e-01)
-
-
+  
 
     @pytest.mark.run(after='test_with_optimal_params')
     def test_lrp_innvestigate_analysis(self, f_and_l):
