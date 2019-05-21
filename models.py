@@ -40,16 +40,25 @@ def create_dense_model(x_train, y_train, x_test, y_test, params):
     earlyStoppingCb = callbacks.EarlyStopping(
         patience=4, monitor='val_acc')
 
+
+    training_generator = DataGenerator(x_train_indices, y_train_indices,
+                                       feature_matrix_path=params['feature_matrix_path'],
+                                       y_path=params['y_path'])
+    testing_generator = DataGenerator(x_test_indices, y_test_indices,
+                                      feature_matrix_path=params['feature_matrix_path'],
+                                      y_path=params['y_path'])
+
     # Model fitting
-    history = model.fit(x_train, y_train,
-                        epochs=params['epochs'],
-                        batch_size=params['batch_size'],
-                        verbose=0,
-                        callbacks=[
-                            # tensorboardCb,
-                            # earlyStoppingCb
-                        ],
-                        validation_data=[x_test, y_test])
+    history = model.fit_generator(generator=training_generator,
+                                  validation_data=testing_generator,
+                                  use_multiprocessing=False,
+                                  #workers=6,
+                                  epochs=params['epochs'],
+                                  verbose=params['verbose'],
+                                  callbacks=[
+                                    # tensorboardCb,
+                                    # earlyStoppingCb
+                                  ])
 
     return history, model
 
@@ -57,7 +66,7 @@ def create_dense_model(x_train, y_train, x_test, y_test, params):
 def create_conv_model(x_train_indices, y_train_indices, x_test_indices, y_test_indices, params):
     print(params)
     model = Sequential()
-    model.add(Conv1D(filters=1, 
+    model.add(Conv1D(filters=5, 
                      kernel_size=3,
                      strides=1,
                      padding='valid',
@@ -70,7 +79,19 @@ def create_conv_model(x_train_indices, y_train_indices, x_test_indices, y_test_i
     model.add(Dropout(rate=params['dropout_rate']))
     model.add(AvgPool1D(pool_size=2, padding='valid'))  # n, d''/pool_size, 5
 
-    model.add(Conv1D(filters=1,
+    model.add(Conv1D(filters=5,
+                     kernel_size=3,
+                     strides=1,
+                     padding='valid',
+                     bias_initializer=Constant(value=-0.0),
+                     bias_constraint=EnforceNeg()))  # n, d', 3
+    if params['use_normalization']:
+        model.add(BatchNormalization())
+    model.add(Activation('relu'))
+    model.add(Dropout(rate=params['dropout_rate']))
+    model.add(AvgPool1D(pool_size=2, padding='valid'))  # n, d''/pool_size, 5
+
+    model.add(Conv1D(filters=5,
                      kernel_size=3,
                      strides=1,
                      padding='valid',
