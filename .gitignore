@@ -8,3 +8,8 @@ keras-logs/
 tb-logs/
 .idea/
 talos_output/
+.vscode/
+**/*.pyc
+tests/parameters/
+tests/tb/
+qsub/

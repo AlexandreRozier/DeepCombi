@@ -6,9 +6,11 @@ from keras.models import Sequential, load_model
 from keras.utils import to_categorical
 from keras.initializers import TruncatedNormal, Constant
 from keras.constraints import MaxNorm, UnitNorm
+from keras import optimizers
 from helpers import EnforceNeg, count_lines
 import numpy as np
 import os
+from parameters_complete import TEST_DIR
 import multiprocessing
 
 
@@ -33,18 +35,17 @@ def create_dense_model(x_train, y_train, x_test, y_test, params):
                   optimizer='sgd',
                   metrics=['accuracy'])
 
-    dir_path = os.path.dirname(os.path.realpath(__file__))
     # Callbacks
-    tensorboardCb = callbacks.TensorBoard(log_dir=dir_path+'/keras-logs', histogram_freq=0,
+    tensorboardCb = callbacks.TensorBoard(log_dir=os.path.join(TEST_DIR,'tb'), histogram_freq=0,
                                           write_graph=True, write_images=True)
     earlyStoppingCb = callbacks.EarlyStopping(
         patience=4, monitor='val_acc')
 
 
-    training_generator = DataGenerator(x_train_indices, y_train_indices,
+    training_generator = DataGenerator(train_indices, train_indices,
                                        feature_matrix_path=params['feature_matrix_path'],
                                        y_path=params['y_path'])
-    testing_generator = DataGenerator(x_test_indices, y_test_indices,
+    testing_generator = DataGenerator(test_indices, test_indices,
                                       feature_matrix_path=params['feature_matrix_path'],
                                       y_path=params['y_path'])
 
@@ -56,16 +57,17 @@ def create_dense_model(x_train, y_train, x_test, y_test, params):
                                   epochs=params['epochs'],
                                   verbose=params['verbose'],
                                   callbacks=[
-                                    # tensorboardCb,
+                                    tensorboardCb,
                                     # earlyStoppingCb
                                   ])
 
     return history, model
 
 
-def create_conv_model(x_train_indices, y_train_indices, x_test_indices, y_test_indices, params):
+def create_conv_model(train_indices, test_indices, params):
     print(params)
     model = Sequential()
+
     model.add(Conv1D(filters=5, 
                      kernel_size=3,
                      strides=1,
@@ -73,32 +75,19 @@ def create_conv_model(x_train_indices, y_train_indices, x_test_indices, y_test_i
                      input_shape=(10020, 3),
                      bias_initializer=Constant(value=-0.0),
                      bias_constraint=EnforceNeg()))  # n, d', 3
-    if params['use_normalization']:
-        model.add(BatchNormalization())
+    model.add(BatchNormalization())
     model.add(Activation('relu'))
     model.add(Dropout(rate=params['dropout_rate']))
     model.add(AvgPool1D(pool_size=2, padding='valid'))  # n, d''/pool_size, 5
 
-    model.add(Conv1D(filters=5,
-                     kernel_size=3,
-                     strides=1,
-                     padding='valid',
-                     bias_initializer=Constant(value=-0.0),
-                     bias_constraint=EnforceNeg()))  # n, d', 3
-    if params['use_normalization']:
-        model.add(BatchNormalization())
-    model.add(Activation('relu'))
-    model.add(Dropout(rate=params['dropout_rate']))
-    model.add(AvgPool1D(pool_size=2, padding='valid'))  # n, d''/pool_size, 5
 
     model.add(Conv1D(filters=5,
-                     kernel_size=3,
+                     kernel_size=5,
                      strides=1,
                      padding='valid',
                      bias_initializer=Constant(value=-0.0),
                      bias_constraint=EnforceNeg()))  # n, d', 3
-    if params['use_normalization']:
-        model.add(BatchNormalization())
+    model.add(BatchNormalization())
     model.add(Activation('relu'))
     model.add(Dropout(rate=params['dropout_rate']))
     model.add(AvgPool1D(pool_size=2, padding='valid'))  # n, d''/pool_size, 5
@@ -112,22 +101,30 @@ def create_conv_model(x_train_indices, y_train_indices, x_test_indices, y_test_i
                     bias_constraint=EnforceNeg()))
     model.add(Activation('softmax'))
 
+
+    sgd = optimizers.SGD(lr=params['learning_rate'], decay=params['decay'], momentum=params['momentum'], nesterov=False)
     model.compile(loss='categorical_crossentropy',
-                  optimizer='sgd',
+                  optimizer=sgd,
                   metrics=['accuracy'])
 
-    dir_path = os.path.dirname(os.path.realpath(__file__))
-    
+
+
+    RUN_DIR_NAME = ""
+    for key, val in params.items():
+        if key not in ['feature_matrix_path','y_path', 'verbose']:
+            RUN_DIR_NAME+= "{}-{}__".format(key,val)
+
+
     # Callbacks
-    tensorboardCb = callbacks.TensorBoard(log_dir=dir_path+'/tb-logs', histogram_freq=0,
+    tensorboardCb = callbacks.TensorBoard(log_dir=os.path.join(TEST_DIR,'tb',RUN_DIR_NAME), histogram_freq=0,
                                           write_graph=True, write_images=True)
     earlyStoppingCb = callbacks.EarlyStopping(
         patience=6, monitor='val_acc')
 
-    training_generator = DataGenerator(x_train_indices, y_train_indices,
+    training_generator = DataGenerator(train_indices, train_indices,
                                        feature_matrix_path=params['feature_matrix_path'],
                                        y_path=params['y_path'])
-    testing_generator = DataGenerator(x_test_indices, y_test_indices,
+    testing_generator = DataGenerator(test_indices, test_indices,
                                       feature_matrix_path=params['feature_matrix_path'],
                                       y_path=params['y_path'])
 
@@ -139,7 +136,7 @@ def create_conv_model(x_train_indices, y_train_indices, x_test_indices, y_test_i
                                   epochs=params['epochs'],
                                   verbose=params['verbose'],
                                   callbacks=[
-                                    # tensorboardCb,
+                                    tensorboardCb,
                                     # earlyStoppingCb
                                   ])
 

@@ -35,7 +35,7 @@ class Indices:
 
 # Train on 40% of data, test on 10%
 # So that 5-Fold validation computes results for the same train/test sizes
-TRAIN_PERCENTAGE = 0.40
+TRAIN_PERCENTAGE = 0.80
 TEST_PERCENTAGE = 0.10
 VAL_PERCENTAGE = 1 - TRAIN_PERCENTAGE - TEST_PERCENTAGE
 seed = 666

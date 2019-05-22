@@ -11,7 +11,7 @@ ROOT_DIR = os.environ['ROOT_DIR']
 DATA_DIR = os.path.join(ROOT_DIR,'data')
 TEST_DIR = os.path.join(ROOT_DIR,'tests')
 TALOS_OUTPUT_DIR = os.path.join(TEST_DIR,'talos_output')
-
+PARAMETERS_DIR = os.path.join(TEST_DIR,'parameters')
 
 
 top_k= 30
