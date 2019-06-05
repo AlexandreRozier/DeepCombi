@@ -20,7 +20,6 @@ import pytest
 
 @pytest.mark.incremental
 class TestCombi(object):
-
     
    
     def test_pvalues_generation(self, raw_data, raw_labels):

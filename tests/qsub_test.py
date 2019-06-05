@@ -10,13 +10,13 @@ import pickle
 import time
 import keras.constraints
 from sklearn.model_selection import train_test_split, KFold
-from helpers import chi_square, string_to_featmat, EnforceNeg 
+from helpers import chi_square, string_to_featmat, EnforceNeg, generate_name_from_params
 keras.constraints.EnforceNeg = EnforceNeg # Absolutely crucial
 
 from parameters_complete import (Cs, classy, filter_window_size,
                                  p_pnorm_filter, pnorm_feature_scaling,
                                  svm_rep, TEST_DIR, TALOS_OUTPUT_DIR, DATA_DIR, PARAMETERS_DIR)
-from models import create_conv_model, create_dense_model
+from models import create_conv_model, create_dense_model, baseline_dense_model
 
 @pytest.mark.incremental
 class TestQsub(object):
@@ -36,15 +36,17 @@ class TestQsub(object):
             print(e)
 
         params_range = {
-            'epochs': np.linspace(100,300, 30),
-            'dropout_rate': np.linspace(0.3,0.5,2),
-            'batch_size': np.linspace(128, 640, 10),
+            'epochs': [500],
+            #'dropout_rate': [0],
+            'batch_size': np.linspace(32, 500, 10),
             'feature_matrix_path': [os.path.join(DATA_DIR,'3d_feature_matrix.npy')],
             'y_path':[os.path.join(DATA_DIR,'syn_labels.txt')],
             'verbose':[1],
-            'decay':[0],
-            'momentum':[0],
-            'learning_rate':np.logspace(-4,-2, 3)
+            #'decay':[10e-6],
+            #'momentum':[0],
+            #'noise':[0.01],
+            #'reg_rate':[0.01,0.001],
+            #'learning_rate':[10e-3, 10e-4] #np.logspace(-6,-3, 4)
         }
 
         p = {}
@@ -61,8 +63,12 @@ class TestQsub(object):
         with open(CONF_PATH, 'rb') as input:
             p = pickle.load(input)
             print("Using params {}".format(p))
-            history, model = create_conv_model(indices.train, indices.test, p)
-            assert(history.history['val_acc'][-1] > 0.50)
+            history, model = baseline_dense_model(indices.train, indices.test, p)
+            print("Number of weights: {}".format(model.count_params()))
+            assert(np.max(history.history['val_acc']) > 0.70)
+            model_name = generate_name_from_params(p)
+            model.save(os.join(TEST_DIR,'exported_models',model_name))
+
     
     
 

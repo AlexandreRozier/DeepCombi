@@ -13,3 +13,6 @@ talos_output/
 tests/parameters/
 tests/tb/
 qsub/
+**/*.nfs*
+.pytest_cache/
+core

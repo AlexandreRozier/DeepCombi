@@ -13,121 +13,147 @@ from parameters_complete import DATA_DIR
 
 from tqdm import tqdm
 
+def generate_name_from_params(params):
+    RUN_DIR_NAME = ""
+    for key, val in params.items():
+        if key not in ['feature_matrix_path','y_path', 'verbose']:
+            RUN_DIR_NAME+= "{}-{}__".format(key,val)
+    RUN_DIR_NAME += "{}".format(os.environ['SGE_TASK_ID'])
+    return RUN_DIR_NAME
 
-def sanitize_chromosome(chromosome):
-    # Remove SNPs with unknown values
-    allel1_mat = chromosome[:, :, 0]
-    allel2_mat = chromosome[:, :, 1]
-    valid_mask_1 = np.where(allel1_mat != 48, True, False)
-    valid_mask_2 = np.where(allel2_mat != 48, True, False)
-    valid_snps = np.logical_and(valid_mask_1, valid_mask_2)  # Elements
-    valid_columns = valid_snps.all(axis=0)
-
-    chrom_valid = chromosome[:, valid_columns]  # (n, n_valid_snp, 2)
-    n_indiv, _, _ = chrom_valid.shape
-
-    # Remove SNPs with insufficient minor frequencies
-    lex_min_per_snp = chrom_valid.min(axis=(0, 2))  # (n)
-    lex_min_map = np.tile(lex_min_per_snp, [n_indiv, 1])
-
-    min_mask1 = np.where(chrom_valid[:, :, 0] == lex_min_map, True, False)
-    min_mask2 = np.where(chrom_valid[:, :, 1] == lex_min_map, True, False)
-
-    maf = (np.sum(min_mask1, axis=0) +
-           np.sum(min_mask2, axis=0))/(2*n_indiv)
-    maf = np.minimum(maf, 1-maf)
-    chrom_valid = chrom_valid[:, maf > 0.15, :]
-    return chrom_valid
-
-
-def generate_syn_genotypes(root_path=DATA_DIR,prefix="syn", c=6, n_replication=20, group_size=300, n_info_snps=20, n_noise_snps=10000):
-    
-    """ Generate synthetic genotypes and labels by removeing all minor allels with low frequency, and unmapped SNPs.
+def remove_small_frequencies(chromosome):
     """
+    This returns a chromosom with only minor allel freq > 0.15
+    This chromosom can be safely used to generate synthetic genotypes.
+    The returned value CAN CONTAIN UNMAPPED SNPs !
+    """
+    chromosome[chromosome == 48] = 255
+    n_indiv = chromosome.shape[0]
+    lex_min = np.tile(np.min(chromosome, axis=(0,2)),[n_indiv,1])
+    
+    allel1= chromosome[:,:,0]
+    allel2= chromosome[:,:,1]
+    maf = (np.sum(allel1==lex_min,axis=0) + np.sum(allel2==lex_min, axis=0))/(2*n_indiv)
+    maf = np.minimum(maf, 1-maf)
+    
+
+    chrom_low_f_removed = chromosome[:, maf > 0.15, :]
+    chrom_low_f_removed[chrom_low_f_removed == 255] = 48
+
+    check_genotype_unique_allels(chrom_low_f_removed)
+    
+    return chrom_low_f_removed
+
+def check_genotype_unique_allels(genotype):
+    assert(max([len(np.unique(genotype[:,i,:])) for i in range(genotype.shape[1])]) <=3)
+
+def generate_syn_genotypes(root_path=DATA_DIR,prefix="syn", n_replication=20, group_size=300, n_info_snps=20, n_noise_snps=10000):
+    
+    """ Generate synthetic genotypes and labels by removing all minor allels with low frequency, and missing SNPs.
+        First step of data preprocessing, has to be followed by string_to_featmat()
+        > Checks that that each SNP in each chromosome has at most 2 unique values in the whole dataset.
+    
+    """
+    print("Starting synthetic genotypes generation...")
 
     try:
         os.remove(os.path.join(root_path, prefix+'_data.txt'))
     except FileNotFoundError:
         pass
 
-    try:
-        os.remove(os.path.join(root_path, prefix+'_labels.txt'))
-    except FileNotFoundError:
-        pass
-
+    # Load complete chromosomes
     f = h5py.File(os.path.join(DATA_DIR, 'chromo_01.mat'), 'r')
     chrom1_full = f.get('X')
     chrom1_full = np.array(chrom1_full).T
     f.close()
+    chrom1_full = chrom1_full.reshape(chrom1_full.shape[0], -1, 3)[:, :, :2]
+    chrom1_full = remove_small_frequencies(chrom1_full)
+    chrom1_full = chrom1_full[:,:n_info_snps]
 
     f2 = h5py.File(os.path.join(DATA_DIR, 'chromo_02.mat'), 'r')
     chrom2_full = f2.get('X')
     chrom2_full = np.array(chrom2_full).T
     f2.close()
+    chrom2_full = chrom2_full.reshape(chrom2_full.shape[0], -1, 3)[:, :, :2]
+    chrom2_full = remove_small_frequencies(chrom2_full) 
+    chrom2_full = chrom2_full[:,:n_noise_snps]
 
-    for i in tqdm(range(n_replication)):
-        chrom1_full = np.roll(chrom1_full, group_size)
-        chrom2_full = np.roll(chrom2_full, group_size)
+    half_noise_size = int(n_noise_snps/2)
 
-        chrom1 = chrom1_full[:group_size]
-        n_indiv, _ = chrom1.shape
-        chrom1 = chrom1.reshape(n_indiv, -1, 3)[:, :, :2]
-        chrom1 = sanitize_chromosome(chrom1)
+    buffer = np.zeros((group_size*n_replication, n_info_snps+n_noise_snps, 2))
 
+    # Permute individuals to generate synthetic genotypes 
+    for l in tqdm(range(n_replication)):
+        chrom1_full = np.roll(chrom1_full, group_size, axis=0) # rolls people, and keeps SNPs fixed
+        chrom2_full = np.roll(chrom2_full, group_size, axis=0)
+
+        chrom1 = chrom1_full[:group_size] # Keep only 300 people
         chrom2 = chrom2_full[:group_size]
-        n_indiv, _ = chrom2.shape
-        chrom2 = chrom2.reshape(n_indiv, -1, 3)[:, :, :2]
-        chrom2 = sanitize_chromosome(chrom2)
 
-        half_noise_size = int(n_noise_snps/2)
         data = np.concatenate((chrom2[:, :half_noise_size], chrom1[:, :n_info_snps],
                                chrom2[:, half_noise_size:half_noise_size*2]), axis=1)
         # If the number of encoded SNPs is insufficient
         if data.shape[1] != n_info_snps + n_noise_snps:
-            print("SKIPPING RUN")
-            pass
+            raise Exception("Not enough SNPs")
+            
         else:
-            # Generate Informative  SNPs file
-            with open(os.path.join(root_path, prefix+'_data.txt'), 'a') as file:
-                for i in tqdm(range(n_indiv)):
-                    for j in range(n_info_snps+n_noise_snps):
-                        all1 = data[i, j, 0]
-                        all2 = data[i, j, 1]
-                        if all1 < all2:
-                            file.write("{}{} ".format(
-                                str(chr(all1)), str(chr(all2))))
-                        else:
-                            file.write("{}{} ".format(
-                                str(chr(all2)), str(chr(all1))))
-                    file.write("\n")
+            buffer[l*group_size:(l+1)*group_size] = data
+        
+        
+    # Write everything!
+    with h5py.File(os.path.join(root_path, prefix+'_data.txt'), 'w') as file:
+        file.create_dataset("X", data=buffer)
 
-            # Generate Labels from UNIQUE SNP at position 9
+    return os.path.join(root_path, prefix+'_data.txt')
+    
+def generate_syn_phenotypes(root_path=DATA_DIR, prefix="syn", c=6, n_info_snps=20, n_noise_snps=10000):
+    """
+    > Assumes that each SNP has at most 3 unique values in the whole dataset (Two allels and possibly unmapped values)
+    """
+    print("Starting synthetic phenotypes generation...")
 
-            info_snp_idx = 9
-            info_snp = chrom1[:, info_snp_idx]  # (n,2)
-            lex_maj = info_snp.max()  # (n,1)
-            mask1 = np.where(info_snp[:, 0] == lex_maj, True, False)
-            mask2 = np.where(info_snp[:, 1] == lex_maj, True, False)
-            nb_major_allels = np.sum([mask1, mask2], axis=0)  # (n,1)
-            probabilities = np.power(
-                (1+np.exp(-c * (nb_major_allels - np.median(nb_major_allels)))), -1)
-            random_vector = np.random.uniform(size=n_indiv)
-            labels = np.where(probabilities > random_vector, "1", "-1")
-            assert data.shape[0] == labels.shape[0]
-            with open(os.path.join(root_path, prefix+'_labels.txt'), 'a') as file:
-                for label in tqdm(labels):
-                    file.write(label+"\n")
-    return os.path.join(root_path, prefix+'_data.txt'), os.path.join(root_path, prefix+'_labels.txt')
+    try:
+        os.remove(os.path.join(root_path, prefix+'_labels.txt'))
+    except FileNotFoundError:
+        pass
 
+    # Generate Labels from UNIQUE SNP at position 9
+    info_snp_idx = 9
 
+    with h5py.File(os.path.join(root_path, prefix+'_data.txt'), 'r') as file:
+       
+        genotype = file['X'][:]
+        n_indiv = genotype.shape[0]
+        info_snp = genotype[:, info_snp_idx]  # (n,2)
+        all1 = np.max(info_snp)
+        info_snp[info_snp==48]= 255
+        all2 = np.min(info_snp)
+        minor_allel = all1 if np.sum(info_snp==all1) < np.sum(info_snp==all2) else all2
+        major_allel = all1 if np.sum(info_snp==all1) > np.sum(info_snp==all2) else all2
+        assert(minor_allel != major_allel)
 
+        minor_mask_1 = np.where(info_snp[:, 0] == minor_allel, True, False)  # n
+        minor_mask_2 = np.where(info_snp[:, 1] == minor_allel, True, False) # n
+        nb_minor_allels = np.sum([minor_mask_1, minor_mask_2], axis=0)  # scalar
+        probabilities = np.power(
+            (1+np.exp(-c * (nb_minor_allels - np.median(nb_minor_allels)))), -1)
+        random_vector = np.random.uniform(size=n_indiv)
+        labels = np.where(probabilities > random_vector, "1", "-1")
+        assert genotype.shape[0] == labels.shape[0]
+        with open(os.path.join(root_path, prefix+'_labels.txt'), 'a') as file:
+            for label in tqdm(labels):
+                file.write(label+"\n")
 
+    return os.path.join(root_path, prefix+'_labels.txt')
 
 
 
     
-def string_to_featmat(data, data_type_to_be_returned='double', embedding_type='2d', overwrite=False):
-    """ Transforms numpy matrix of chars to a tensor of features 
+def string_to_featmat(data, embedding_type='2d', overwrite=False):
+    """ - Transforms numpy matrix of chars to a tensor of features.
+        - Encode SNPs with error to [0,0,0] 
+        - Does NOT change shape or perform modifications
+        Second and final step of data preprocessing.
     """
 
     filename = os.path.join(DATA_DIR,embedding_type +'_feature_matrix.npy')
@@ -135,32 +161,28 @@ def string_to_featmat(data, data_type_to_be_returned='double', embedding_type='2
     # Check if feature matrix has already been generated
     if not overwrite:
         try:
-            feature_matrix = np.load(filename)
             print("Loading feature matrix from disk")
-            return feature_matrix
+            return np.load(filename)
+
         except FileNotFoundError as identifier:
             print("Feature matrix at {} not found, generating new one".format(filename))
-            pass
 
     ###  Global Parameters   ###
-    (n_subjects, num_snp3) = data.shape
+    (n_subjects, num_snp3, _) = data.shape
 
     ##  Main script     ###
-    first_strand_by_person_mat = np.vectorize(
-        lambda e: bytes(e[0], 'utf-8')[0])(data)
-    second_strand_by_person_mat = np.vectorize(
-        lambda e: bytes(e[1], 'utf-8')[0])(data)
+    first_strand_by_person_mat = data[:,:,0]
+    second_strand_by_person_mat = data[:,:,1]
 
-    num_genotyping_errors = np.sum(first_strand_by_person_mat == b'0'[
-                                   0]) + np.sum(second_strand_by_person_mat == b'0'[0])
+    num_genotyping_errors = np.sum(data == 48)
 
     # Computes lexicographically highest and lowest nucleotides for each position of each strand
-    lexmax_allele_1 = np.max(first_strand_by_person_mat, 0)
-    lexmax_allele_2 = np.max(second_strand_by_person_mat, 0)
+    lexmax_allele_1 = np.max(first_strand_by_person_mat, axis=0)
+    lexmax_allele_2 = np.max(second_strand_by_person_mat, axis=0)
     lexmax_by_pair = np.maximum(lexmax_allele_1, lexmax_allele_2)
 
-    first_strand_by_person_mat[first_strand_by_person_mat == b'0'[0]] = 255
-    second_strand_by_person_mat[second_strand_by_person_mat == b'0'[0]] = 255
+    first_strand_by_person_mat[first_strand_by_person_mat == 48] = 255
+    second_strand_by_person_mat[second_strand_by_person_mat == 48] = 255
 
     lexmin_allele_1 = np.min(first_strand_by_person_mat, 0)
     lexmin_allele_2 = np.min(second_strand_by_person_mat, 0)
@@ -202,12 +224,14 @@ def string_to_featmat(data, data_type_to_be_returned='double', embedding_type='2
     feature_map[invalid_bool_mask] = [0, 0, 0]
     feature_map = np.reshape(feature_map, (n_subjects, 3*num_snp3))
     feature_map = feature_map.astype(np.double)
-    feature_map = pp.scale(feature_map, axis=0)  # preprocess matrix
 
+    
+    # Scale & reshape Feature matrix
     if(embedding_type == '2d'):
         pass
     elif(embedding_type == '3d'):
         feature_map = np.reshape(feature_map, (n_subjects, num_snp3, 3))
+    
 
     np.save(filename, feature_map)
 

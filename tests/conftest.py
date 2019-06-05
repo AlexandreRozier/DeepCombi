@@ -8,7 +8,7 @@ import os
 import math
 from time import time
 from helpers import count_lines
-
+import h5py
 
 class Label:
     def __init__(self, train, test, val, all):
@@ -55,24 +55,29 @@ def raw_labels():
 
 @pytest.fixture(scope="module")
 def raw_data():
-    with open(features_path, 'r') as d:
-        return np.loadtxt(d, np.chararray, skiprows=skiprows)
+    with h5py.File(features_path,'r') as d:
+        return d['X'][:]
 
 
 @pytest.fixture(scope="module")
 def f_and_l(raw_data, raw_labels):
-    y_all = to_categorical(raw_labels)
-    x_all = string_to_featmat(raw_data, embedding_type='3d')
-    x_, x_test, y_, y_test = train_test_split(
-        x_all, y_all, test_size=TEST_PERCENTAGE, random_state=random_state)
-    x_train, x_val, y_train, y_val = train_test_split(
-        x_, y_, test_size=math.floor(VAL_PERCENTAGE/(1-TEST_PERCENTAGE)),  random_state=random_state)
 
-    print('Dataset sizes: Train: {}; Test: {}; Validation: {}'.format(len(x_train),len(x_test), len(x_val)))
-    return {
-        'features':Features(x_train, x_test, x_val, x_all), 
-        'labels':Label(y_train, y_test, y_val, y_all)
-    }
+    def _f_and_l(embedding_type="3d", categorical=True):
+        if categorical==True:
+            y_all = to_categorical(raw_labels)
+        else:
+            y_all = raw_labels
+        x_all = string_to_featmat(raw_data, embedding_type=embedding_type)
+        x_, x_test, y_, y_test = train_test_split(
+            x_all, y_all, test_size=TEST_PERCENTAGE, random_state=random_state)
+        x_train, x_val, y_train, y_val = train_test_split(
+            x_, y_, test_size=math.floor(VAL_PERCENTAGE/(1-TEST_PERCENTAGE)),  random_state=random_state)
+
+        print('Dataset sizes: Train: {}; Test: {}; Validation: {}'.format(len(x_train),len(x_test), len(x_val)))
+        return Features(x_train, x_test, x_val, x_all), Label(y_train, y_test, y_val, y_all)
+    
+    return _f_and_l
+
 
 
 
@@ -89,7 +94,8 @@ def indices():
     test_indices = indices_[math.floor(
         n1*TRAIN_PERCENTAGE):math.floor(n1*(TRAIN_PERCENTAGE + TEST_PERCENTAGE))]
     val_indices = indices_[math.floor(n1*(TRAIN_PERCENTAGE + TEST_PERCENTAGE)):]
-
+    assert(len(np.intersect1d(train_indices,test_indices))==0)
+    assert(len(np.intersect1d(train_indices,val_indices))==0)
     print('Dataset sizes: Train: {}; Test: {}; Validation: {}'.format(len(train_indices),len(test_indices), len(val_indices)))
     return Indices(train_indices, test_indices, val_indices)
 

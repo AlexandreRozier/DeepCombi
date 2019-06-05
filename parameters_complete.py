@@ -5,6 +5,8 @@ import os
 if 'ROOT_DIR' not in os.environ:
     os.environ['ROOT_DIR'] = "/home/hx/Work/Masterarbeit/PythonImplementation"
 
+if 'PREFIX' not in os.environ:
+    os.environ['PREFIX'] = "default"
 
 
 ROOT_DIR = os.environ['ROOT_DIR']
@@ -27,7 +29,7 @@ num_splits = 10
 
 svm_rep= 1
 svm_rep_permtest = 1
-Cs= 0.0022  # logspace(-4,4,7), #Cs=logspace(-4,-1,3),
+Cs= 0.00001  # logspace(-4,4,7), #Cs=logspace(-4,-1,3),
 use_seed = 1 # 0 or 1
 seed = 13
 use_scaling = 1
