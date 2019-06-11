@@ -1,27 +1,27 @@
 IDEAs:  regulazrization to force locality ?
 
 
-#7-12 / 04
+# 7-12 / 04
 
 Python implementation of Combi
 added feature matrix extraction
 added svm training
 added custom moving average
 
-#14-19 / 04
+# 14-19 / 04
 
 Learned Chi2 test
 Started writing report: chi2 started & mathematical overview of the topic
 Added unit testing
 Implemented permutations for t* computations
 
-#22 - 26 / 04
+# 22 - 26 / 04
 
 Added LRP through innvestigate
 - DeepTaylor + 500 dense relu & softmax works well, but the relevance map is absolute noise
 - need simpler model & more data (MNISt works but n=60k & d=900)
 
-#29/04 - 03 / 05
+# 29/04 - 03 / 05
 
 - Hp optimization with talos
 - Trying dense, conv, dropout to get good generalization, in hope to improve LRP. Conv should enforce locality
@@ -29,12 +29,12 @@ Added LRP through innvestigate
 - shitty result w/ linear model (<40% validation accuracy %) (Dense2)
 - convolutional model performs quite well (100% val acc with conv1 1 filter size 35; avgpool size 5, dense2)
 
-#06 - 10 / 05
+# 06 - 10 / 05
 
 - Solved bugs with custom Keras constraints
 - Working on toy data generation thanks to chromosom1 & 2 from Bettina
 
-#13 - 17 / 05
+# 13 - 17 / 05
 
 - Built streaming version of the data (generators)
 - Now Accuracy has dropped to 60%
@@ -66,7 +66,7 @@ Added LRP through innvestigate
 # 03 - 07 /  05
 
 - Discussion with nico, avoid batchnorm that reduces to gaussian our data distribution
-- Avoid mean centering, fucks everything up
+- Avoid mean centering when it's not for SVM
 - Baselines on 10 000 syn data:  
 
 | Baseline   | Max train acc | Max val acc      | AUC Roc         |
@@ -75,3 +75,5 @@ Added LRP through innvestigate
 | svm + l2           | ?             |   0.63         |   0.67 |  Not implemented |
 | decision trees | ?             |   0.6737373737373737         |   0.6737373737373737 |
 | logistic regression + l2| ?        |     0.6595        |    0.6629 |
+  
+  **FEATURE MATRIX FOR COMBI NEEDS TO BE SCALED**

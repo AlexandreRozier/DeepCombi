@@ -43,19 +43,22 @@ np.random.seed(seed)
 random_state = np.random.RandomState(seed)
 skiprows = 0
 
-features_path = os.path.join(DATA_DIR, 'syn_data.txt')
-labels_path = os.path.join(DATA_DIR, 'syn_labels.txt')
+features_path = os.path.join(DATA_DIR, 'syn_data.h5py')
+labels_path = os.path.join(DATA_DIR, 'syn_labels.h5py')
 
 
 @pytest.fixture(scope="module")
 def raw_labels():   
-    with open(labels_path, 'r') as l:
-        return np.loadtxt(l, dtype=np.int8, skiprows=skiprows)
-
+    with h5py.File(labels_path, 'r') as d:
+        print(d['X'][:])
+        return d['X'][:]
+        
+   
 
 @pytest.fixture(scope="module")
 def raw_data():
     with h5py.File(features_path,'r') as d:
+        print(d['X'][:])
         return d['X'][:]
 
 
@@ -84,9 +87,10 @@ def f_and_l(raw_data, raw_labels):
 
 @pytest.fixture(scope="module")
 def indices():
-    n1 = count_lines(features_path)-1  # Don't forget the extra \n line
-    n2 = count_lines(labels_path)-1
-    assert n1 == n2
+    with h5py.File(features_path,'r') as f, h5py.File(labels_path,'r') as l :
+        n1 = f['X'].shape[0]
+        n2 = l['X'].shape[0]
+        assert n1 == n2
 
     indices_ = np.arange(n1)
     np.random.shuffle(indices_)

@@ -3,54 +3,66 @@
 import numpy as np 
 from sklearn import preprocessing as pp, svm 
 from helpers import moving_average, chi_square, string_to_featmat
+from parameters_complete import TEST_DIR
+import matplotlib
+matplotlib.use('QT5Agg') 
 from matplotlib import pyplot as plt
 from tqdm import tqdm
 import math
+import os 
+from parameters_complete import Cs, n_total_snps
+from sklearn.preprocessing import StandardScaler
 
 def compute_top_k_indices(data, labels, filter_window_size, top_k , p):
     # Run Combi-Method and identify top_k best SNPs
     ### string data to feature_matrix ###
     featmat = string_to_featmat( data )
-      
+    std = (np.mean(np.abs(featmat)**2,axis=0)*data.shape[1])**(1/2)
+    scaled_featmat = featmat / std
     ### SVM training ###
     classifier = svm.LinearSVC()
-    classifier.fit(featmat, labels)
+    classifier.fit(scaled_featmat, labels)
 
     ### Postprocessing with Moving Average Filter ###
-    weights = classifier.coef_[0]
+    weights = classifier.coef_[0] # n_snps * 3
     weights = np.mean(weights.reshape(-1, 3), axis=1) # Group & Average weights by 3 (yields locus's importance measure)
     weights = np.abs(weights)
-    weights = moving_average(weights,filter_window_size, p) 
+    weights = moving_average(weights,filter_window_size) 
     top_indices_sorted = weights.argsort()[::-1][:top_k] # Gets indices of top_k greatest elements
+    assert(len(weights) == n_total_snps)
     assert(weights[top_indices_sorted[0]] == np.amax(weights))
     return top_indices_sorted
 
-def combi_method(data, labels, pnorm_feature_scaling, svm_rep, Cs, p, classy, filter_window_size,p_pnorm_filter, top_k=0, full_plot=False ):
+def combi_method(data, labels, pnorm_feature_scaling, p, classy, filter_window_size,p_pnorm_filter, top_k=0, full_plot=False ):
     """
-    data: np.array(n,3*p) SNPs-to-person matrix
-    labels: np.array(n)
+    data: (n, n_snps, 2) SNPs-to-person matrix
+    labels: (n)
     top_k: Keep K greatest SVM weight vector values
     pnorm_feature_scaling: unused, default to normalizing with norm 2
      
     RETURNS: indices, pvalues 
     """
     
-    
     # Avoid SVM preprocessing
     if(top_k==0):
         return chi_square(data, labels)
-
+    
+    # SVM Step to select the most k promising SNPs
+    print("Performing SVM...")
     top_indices_sorted = compute_top_k_indices(data, labels, filter_window_size, top_k, p)
-    # 3. For those SNPs compute p-values on the second half of the data
-
-    pvalues = chi_square(data, labels, top_indices_sorted)
+    
+    # For those SNPs, compute p-values on the second half of the data
+    print("Performing partial X2...")
+    pvalues = chi_square(data[:,top_indices_sorted], labels)
 
     if full_plot:
+        print("Performing complete X2 to prepare plotting...")
+
         complete_pvalues = chi_square(data, labels)
         color_array = ['b' if i in top_indices_sorted else 'r' for i, pvalue in enumerate(complete_pvalues) ]
         plt.scatter(range(len(complete_pvalues)),-np.log10(complete_pvalues), marker='x',color=color_array)
-        plt.xlim(4800,5200)
-        plt.show()
+        #plt.xlim(4800,5200)
+        plt.savefig(os.path.join(TEST_DIR,'combi.png'))
 
     return top_indices_sorted, pvalues
   

@@ -15,6 +15,9 @@ import math
 import os
 import innvestigate
 import innvestigate.utils as iutils
+
+import matplotlib
+matplotlib.use('QT5Agg')
 import matplotlib.pyplot as plt
 import pytest
 
@@ -29,12 +32,14 @@ class TestCombi(object):
     def test_pvalues_subset_generation(self, raw_data, raw_labels):
         n_pvalues = 30
         indices = np.random.randint(raw_data.shape[1], size=n_pvalues)
-        pvalues = chi_square(raw_data, raw_labels, indices)
+        pvalues = chi_square(raw_data[:,indices,:], raw_labels)
+        assert(len(pvalues) == len( indices))
+        assert(min(pvalues) >= 0 and max(pvalues) <=1)
 
     def test_combi(self,raw_data, raw_labels):
-        n_pvalues = 30
-        top_indices_sorted, pvalues = combi_method(raw_data, raw_labels, pnorm_feature_scaling, svm_rep,
-                               Cs, 2, classy, filter_window_size, p_pnorm_filter, n_pvalues,full_plot=True)
+        n_pvalues = 30 
+        top_indices_sorted, pvalues = combi_method(raw_data, raw_labels, pnorm_feature_scaling,
+                                2, classy, filter_window_size, p_pnorm_filter, n_pvalues,full_plot=True)
         print('PVALUES CHOSEN: {}'.format(top_indices_sorted))
 
 
@@ -45,8 +50,8 @@ class TestCombi(object):
         alpha = 0.05
         n_pvalues = 30
         t_star = permuted_combi_method(raw_data, raw_labels,
-                                n_permutations, alpha, n_pvalues,pnorm_feature_scaling, svm_rep,
-                               Cs, 2, classy, filter_window_size, p_pnorm_filter, n_pvalues)
+                                n_permutations, alpha, n_pvalues,pnorm_feature_scaling,
+                               2, classy, filter_window_size, p_pnorm_filter, n_pvalues)
         pvalues = chi_square(raw_data, raw_labels)
         plt.scatter(range(len(pvalues)),-np.log10(pvalues), marker='x')
         plt.axhline(y=-np.log10(t_star), color='r', linestyle='-')

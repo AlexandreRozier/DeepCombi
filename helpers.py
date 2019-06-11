@@ -47,7 +47,7 @@ def remove_small_frequencies(chromosome):
 def check_genotype_unique_allels(genotype):
     assert(max([len(np.unique(genotype[:,i,:])) for i in range(genotype.shape[1])]) <=3)
 
-def generate_syn_genotypes(root_path=DATA_DIR,prefix="syn", n_replication=20, group_size=300, n_info_snps=20, n_noise_snps=10000):
+def generate_syn_genotypes(root_path=DATA_DIR,prefix="syn", n_subjects=20, n_info_snps=20, n_noise_snps=10000):
     
     """ Generate synthetic genotypes and labels by removing all minor allels with low frequency, and missing SNPs.
         First step of data preprocessing, has to be followed by string_to_featmat()
@@ -57,54 +57,44 @@ def generate_syn_genotypes(root_path=DATA_DIR,prefix="syn", n_replication=20, gr
     print("Starting synthetic genotypes generation...")
 
     try:
-        os.remove(os.path.join(root_path, prefix+'_data.txt'))
+        os.remove(os.path.join(root_path, prefix+'_data.h5py'))
     except FileNotFoundError:
         pass
 
     # Load complete chromosomes
-    f = h5py.File(os.path.join(DATA_DIR, 'chromo_01.mat'), 'r')
-    chrom1_full = f.get('X')
-    chrom1_full = np.array(chrom1_full).T
-    f.close()
+    with h5py.File(os.path.join(DATA_DIR, 'chromo_01.mat'), 'r') as f:
+        chrom1_full = np.array(f.get('X')).T
+
     chrom1_full = chrom1_full.reshape(chrom1_full.shape[0], -1, 3)[:, :, :2]
     chrom1_full = remove_small_frequencies(chrom1_full)
     chrom1_full = chrom1_full[:,:n_info_snps]
 
-    f2 = h5py.File(os.path.join(DATA_DIR, 'chromo_02.mat'), 'r')
-    chrom2_full = f2.get('X')
-    chrom2_full = np.array(chrom2_full).T
-    f2.close()
+    with h5py.File(os.path.join(DATA_DIR, 'chromo_02.mat'), 'r') as f2:
+        chrom2_full = np.array(f2.get('X')).T
+
     chrom2_full = chrom2_full.reshape(chrom2_full.shape[0], -1, 3)[:, :, :2]
     chrom2_full = remove_small_frequencies(chrom2_full) 
     chrom2_full = chrom2_full[:,:n_noise_snps]
 
     half_noise_size = int(n_noise_snps/2)
 
-    buffer = np.zeros((group_size*n_replication, n_info_snps+n_noise_snps, 2))
+    assert(n_subjects < chrom1_full.shape[0] and n_subjects < chrom2_full.shape[0])
 
-    # Permute individuals to generate synthetic genotypes 
-    for l in tqdm(range(n_replication)):
-        chrom1_full = np.roll(chrom1_full, group_size, axis=0) # rolls people, and keeps SNPs fixed
-        chrom2_full = np.roll(chrom2_full, group_size, axis=0)
+    chrom1 = chrom1_full[:n_subjects] # Keep only 300 people
+    chrom2 = chrom2_full[:n_subjects]
 
-        chrom1 = chrom1_full[:group_size] # Keep only 300 people
-        chrom2 = chrom2_full[:group_size]
-
-        data = np.concatenate((chrom2[:, :half_noise_size], chrom1[:, :n_info_snps],
-                               chrom2[:, half_noise_size:half_noise_size*2]), axis=1)
-        # If the number of encoded SNPs is insufficient
-        if data.shape[1] != n_info_snps + n_noise_snps:
-            raise Exception("Not enough SNPs")
-            
-        else:
-            buffer[l*group_size:(l+1)*group_size] = data
+    data = np.concatenate((chrom2[:, :half_noise_size], chrom1,
+                            chrom2[:, half_noise_size:half_noise_size*2]), axis=1)
+    # If the number of encoded SNPs is insufficient
+    if data.shape[1] != n_info_snps + n_noise_snps:
+        raise Exception("Not enough SNPs")
         
-        
+
     # Write everything!
-    with h5py.File(os.path.join(root_path, prefix+'_data.txt'), 'w') as file:
-        file.create_dataset("X", data=buffer)
+    with h5py.File(os.path.join(root_path, prefix+'_data.h5py'), 'w') as file:
+        file.create_dataset("X", data=data)
 
-    return os.path.join(root_path, prefix+'_data.txt')
+    return os.path.join(root_path, prefix+'_data.h5py')
     
 def generate_syn_phenotypes(root_path=DATA_DIR, prefix="syn", c=6, n_info_snps=20, n_noise_snps=10000):
     """
@@ -113,38 +103,40 @@ def generate_syn_phenotypes(root_path=DATA_DIR, prefix="syn", c=6, n_info_snps=2
     print("Starting synthetic phenotypes generation...")
 
     try:
-        os.remove(os.path.join(root_path, prefix+'_labels.txt'))
+        os.remove(os.path.join(root_path, prefix+'_labels.h5py'))
     except FileNotFoundError:
         pass
 
     # Generate Labels from UNIQUE SNP at position 9
-    info_snp_idx = 9
+    info_snp_idx = int(n_noise_snps/2) + int(n_info_snps/2)
 
-    with h5py.File(os.path.join(root_path, prefix+'_data.txt'), 'r') as file:
+    with h5py.File(os.path.join(root_path, prefix+'_data.h5py'), 'r') as file:
        
         genotype = file['X'][:]
-        n_indiv = genotype.shape[0]
-        info_snp = genotype[:, info_snp_idx]  # (n,2)
-        all1 = np.max(info_snp)
-        info_snp[info_snp==48]= 255
-        all2 = np.min(info_snp)
-        minor_allel = all1 if np.sum(info_snp==all1) < np.sum(info_snp==all2) else all2
-        major_allel = all1 if np.sum(info_snp==all1) > np.sum(info_snp==all2) else all2
-        assert(minor_allel != major_allel)
 
-        minor_mask_1 = np.where(info_snp[:, 0] == minor_allel, True, False)  # n
-        minor_mask_2 = np.where(info_snp[:, 1] == minor_allel, True, False) # n
-        nb_minor_allels = np.sum([minor_mask_1, minor_mask_2], axis=0)  # scalar
-        probabilities = np.power(
-            (1+np.exp(-c * (nb_minor_allels - np.median(nb_minor_allels)))), -1)
-        random_vector = np.random.uniform(size=n_indiv)
-        labels = np.where(probabilities > random_vector, "1", "-1")
-        assert genotype.shape[0] == labels.shape[0]
-        with open(os.path.join(root_path, prefix+'_labels.txt'), 'a') as file:
-            for label in tqdm(labels):
-                file.write(label+"\n")
+    n_indiv = genotype.shape[0]
+    info_snp = genotype[:,  info_snp_idx]  # (n,2)
+    all1 = np.max(info_snp)
+    info_snp[info_snp==48]= 255
+    all2 = np.min(info_snp)
+    minor_allel = all1 if np.sum(np.where(info_snp==all1,True,False)) < np.sum(np.where(info_snp==all2,True,False)) else all2
+    major_allel = all1 if np.sum(np.where(info_snp==all1,True,False)) > np.sum(np.where(info_snp==all2,True,False)) else all2
+    assert(minor_allel != major_allel)
 
-    return os.path.join(root_path, prefix+'_labels.txt')
+    major_mask_1 = np.where(info_snp[:, 0] == major_allel, True, False)  # n
+    major_mask_2 = np.where(info_snp[:, 1] == major_allel, True, False) # n
+
+    nb_major_allels = np.sum([major_mask_1, major_mask_2], axis=0)  # n
+    probabilities = (1+np.exp(-c * (nb_major_allels - np.median(nb_major_allels)))) ** -1
+    random_vector = np.random.uniform(low=0.0, high=1.0, size=n_indiv)
+    labels = np.where(probabilities > random_vector, 1, -1)
+    assert genotype.shape[0] == labels.shape[0]
+    
+    with h5py.File(os.path.join(root_path, prefix+'_labels.h5py'), 'w') as file:
+        file.create_dataset("X", data=labels)
+
+
+    return os.path.join(root_path, prefix+'_labels.h5py')
 
 
 
@@ -156,42 +148,37 @@ def string_to_featmat(data, embedding_type='2d', overwrite=False):
         Second and final step of data preprocessing.
     """
 
-    filename = os.path.join(DATA_DIR,embedding_type +'_feature_matrix.npy')
+    filename = os.path.join(DATA_DIR,embedding_type +'_feature_matrix.h5py')
 
     # Check if feature matrix has already been generated
     if not overwrite:
         try:
             print("Loading feature matrix from disk")
-            return np.load(filename)
+            with h5py.File(filename, 'r') as file:
 
-        except FileNotFoundError as identifier:
+                return file['X'][:]
+
+        except (FileNotFoundError, OSError) as e:
             print("Feature matrix at {} not found, generating new one".format(filename))
 
     ###  Global Parameters   ###
     (n_subjects, num_snp3, _) = data.shape
 
-    ##  Main script     ###
     first_strand_by_person_mat = data[:,:,0]
     second_strand_by_person_mat = data[:,:,1]
 
-    num_genotyping_errors = np.sum(data == 48)
 
     # Computes lexicographically highest and lowest nucleotides for each position of each strand
-    lexmax_allele_1 = np.max(first_strand_by_person_mat, axis=0)
-    lexmax_allele_2 = np.max(second_strand_by_person_mat, axis=0)
-    lexmax_by_pair = np.maximum(lexmax_allele_1, lexmax_allele_2)
+    lexmax_by_pair = np.max(data, axis=(0,2))
+    data[data==48] = 255
 
-    first_strand_by_person_mat[first_strand_by_person_mat == 48] = 255
-    second_strand_by_person_mat[second_strand_by_person_mat == 48] = 255
-
-    lexmin_allele_1 = np.min(first_strand_by_person_mat, 0)
-    lexmin_allele_2 = np.min(second_strand_by_person_mat, 0)
-    lexmin_by_pair = np.minimum(lexmin_allele_1, lexmin_allele_2)
+    lexmin_by_pair = np.min(data, axis=(0,2))
 
     # Masks showing valid or invalid indices
     # SNPs being unchanged amongst the whole dataset, hold no information
     invalid_bool_mask = np.tile(
         np.where(lexmin_by_pair == lexmax_by_pair, True, False), [n_subjects, 1])
+    
 
     lexmin_mask = np.tile(lexmin_by_pair, [n_subjects, 1])
     lexmax_mask = np.tile(lexmax_by_pair, [n_subjects, 1])
@@ -226,26 +213,24 @@ def string_to_featmat(data, embedding_type='2d', overwrite=False):
     feature_map = feature_map.astype(np.double)
 
     
-    # Scale & reshape Feature matrix
+    # Reshape Feature matrix
     if(embedding_type == '2d'):
         pass
     elif(embedding_type == '3d'):
         feature_map = np.reshape(feature_map, (n_subjects, num_snp3, 3))
     
+    # Write!
+    with h5py.File(filename, 'w') as file:
+        file.create_dataset("X", data=feature_map)
 
-    np.save(filename, feature_map)
 
     return feature_map
 
 
 def count_lines(filename):
-    return sum(1 for line in open(filename))
-
-
-def count_columns(filename):
-    with open(filename) as f:
-        first_line = f.readline()
-        return math.floor(len(first_line)/3)
+    #return sum(1 for line in open(filename))
+    with h5py.File(filename,'r') as d:
+        return d['X'].shape[0]
 
 
 def moving_average(w, k, power=1):
@@ -271,6 +256,9 @@ def moving_average(w, k, power=1):
 # TODO test this
 
 
+def simple_moving_average(w, k):
+    return np.convolve(w, np.ones(k), 'same')
+
 def other_moving_avg(x, k, p):
     x = np.absolute(x)
     x = np.power(x, p)
@@ -284,38 +272,21 @@ def other_moving_avg(x, k, p):
     return np.power(result, 1.0/p)
 
 
-def chi_square(data, labels, filter_indices=[]):
+def chi_square(data, labels):
     """
-    data: 2D encoding
-    labels: +1, -1 encoding
+    data: Char matrix (n * n_snp * 2)
+    labels: -1, 1 encoding
     filter_indices: array of indices ordering the supposed top k p values
     """
 
-    ##########################
-    ###     Assertions     ###
-    ##########################
-    individuals, n_snps = data.shape
-
-    if(len(filter_indices) > 0):
-        data = np.take(data, filter_indices, axis=1)
-        assert(data.shape[1] == len(filter_indices))
-        individuals, n_snps = data.shape
-
-    ##########################
-    ###   Initialization   ###
-    ##########################
-
-    invalid_value = b'0'[0]
+   
+    individuals, n_snps, _ = data.shape
+   
+    invalid_value = 48
     chisq_value = np.zeros(n_snps)
 
-    ##########################
-    ###    Prepare data    ###
-    ##########################
-
-    allele1 = np.vectorize(
-        lambda expected: bytes(expected[0], 'utf-8')[0])(data)
-    allele2 = np.vectorize(
-        lambda expected: bytes(expected[1], 'utf-8')[0])(data)
+    allele1 = data[:,:,0]
+    allele2 = data[:,:,1]
 
     ##################################
     ##################################
@@ -329,8 +300,8 @@ def chi_square(data, labels, filter_indices=[]):
 
     # Find greatest and lowest char code, SNP-wise
 
-    allele1[allele1 == b'0'[0]] = 255
-    allele2[allele2 == b'0'[0]] = 255
+    allele1[allele1 == 48] = 255
+    allele2[allele2 == 48] = 255
 
     lex_min = np.minimum(
         np.min(allele1, 0),

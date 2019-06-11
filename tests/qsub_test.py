@@ -16,7 +16,7 @@ keras.constraints.EnforceNeg = EnforceNeg # Absolutely crucial
 from parameters_complete import (Cs, classy, filter_window_size,
                                  p_pnorm_filter, pnorm_feature_scaling,
                                  svm_rep, TEST_DIR, TALOS_OUTPUT_DIR, DATA_DIR, PARAMETERS_DIR)
-from models import create_conv_model, create_dense_model, baseline_dense_model
+from models import create_conv_model, create_dense_model
 
 @pytest.mark.incremental
 class TestQsub(object):
@@ -40,7 +40,7 @@ class TestQsub(object):
             #'dropout_rate': [0],
             'batch_size': np.linspace(32, 500, 10),
             'feature_matrix_path': [os.path.join(DATA_DIR,'3d_feature_matrix.npy')],
-            'y_path':[os.path.join(DATA_DIR,'syn_labels.txt')],
+            'y_path':[os.path.join(DATA_DIR,'syn_labels.h5py')],
             'verbose':[1],
             #'decay':[10e-6],
             #'momentum':[0],
@@ -63,11 +63,11 @@ class TestQsub(object):
         with open(CONF_PATH, 'rb') as input:
             p = pickle.load(input)
             print("Using params {}".format(p))
-            history, model = baseline_dense_model(indices.train, indices.test, p)
+            history, model = create_dense_model(indices.train, indices.test, p)
             print("Number of weights: {}".format(model.count_params()))
             assert(np.max(history.history['val_acc']) > 0.70)
             model_name = generate_name_from_params(p)
-            model.save(os.join(TEST_DIR,'exported_models',model_name))
+            model.save(os.path.join(TEST_DIR,'exported_models',model_name))
 
     
     

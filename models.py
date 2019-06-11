@@ -14,54 +14,10 @@ import os
 import tensorflow as tf
 from parameters_complete import TEST_DIR
 import multiprocessing
+import h5py
 from tensorflow.python import debug as tf_debug
 
 PREFIX = os.environ['PREFIX']
-
-
-
-
-def baseline_dense_model(train_indices, test_indices, params):
-    
-    model = Sequential()
-    model.add(Flatten(input_shape=(10020, 3)))
-
-    model.add(Dense(units=1,
-                    activation='sigmoid',
-                    bias_constraint=EnforceNeg()))  # Negative bias are crucial for LRP
-
-
-    model.compile(loss='binary_crossentropy',
-                  optimizer='sgd',
-                  metrics=['accuracy'])
-
-    model.summary()
-    
-    MODEL_NAME = generate_name_from_params(params)
-
-    training_generator = DataGenerator(train_indices, train_indices,
-                                        categorical=False,
-                                        feature_matrix_path=params['feature_matrix_path'],
-                                        y_path=params['y_path'])
-
-    testing_generator = DataGenerator(test_indices, test_indices,
-                                            categorical=False,
-                                            feature_matrix_path=params['feature_matrix_path'],
-                                            y_path=params['y_path'])
-
-    tensorboardCb = callbacks.TensorBoard(log_dir=os.path.join(TEST_DIR,'tb',PREFIX,MODEL_NAME), histogram_freq=0)
-
-    
-    # Model fitting
-    history = model.fit_generator(generator=training_generator,
-                                  validation_data=testing_generator,
-                                  use_multiprocessing=False,
-                                  epochs=params['epochs'],
-                                  verbose=params['verbose'],
-                                  callbacks=[
-                                    tensorboardCb,
-                                  ])
-    return history, model
 
 
 
@@ -124,7 +80,6 @@ def create_dense_model(train_indices, test_indices, params):
 
 def create_conv_model(train_indices, test_indices, params):
     
-  
 
     #keras.backend.set_session(tf_debug.TensorBoardDebugWrapperSession(tf.Session(), "node10:6064"))
     print(params)
@@ -223,12 +178,14 @@ class DataGenerator(keras.utils.Sequence):
         'Generates data from SAVED FEATURE MATRIX containing batch_size samples' # X : (n_samples, *dim, n_channels)
         # Initialization
         assert len(indices) == self.batch_size
-        y = np.empty((self.batch_size), dtype=int)
         # Generate data
-        indices = np.sort(indices) 
-        X = np.load(self.x_path, mmap_mode='r') # Check this out !
-        X = np.take(X, indices, axis=0)
+        indices = list(np.sort(indices))
+        with h5py.File(self.x_path,'r') as f:
+            X = f['X'][indices]
+        with h5py.File(self.y_path,'r') as l :
+            y = l['X'][indices]
         
+        """
         counter = 0
         with open(self.y_path, 'r') as fp:
             for line_nb, line in enumerate(fp):
@@ -239,10 +196,10 @@ class DataGenerator(keras.utils.Sequence):
                         y[counter] = 0 if (int(line)<0) else 1
                         counter+=1 
   
-
+        """
         assert X.shape == (self.batch_size, *self.dim)
         assert y.shape[0] == self.batch_size
-        assert counter == self.batch_size
+#        assert counter == self.batch_size
         if self.categorical:
             y = keras.utils.to_categorical(y, num_classes=2)
         return X, y
