@@ -50,7 +50,6 @@ labels_path = os.path.join(DATA_DIR, 'syn_labels.h5py')
 @pytest.fixture(scope="module")
 def raw_labels():   
     with h5py.File(labels_path, 'r') as d:
-        print(d['X'][:])
         return d['X'][:]
         
    
@@ -58,7 +57,6 @@ def raw_labels():
 @pytest.fixture(scope="module")
 def raw_data():
     with h5py.File(features_path,'r') as d:
-        print(d['X'][:])
         return d['X'][:]
 
 

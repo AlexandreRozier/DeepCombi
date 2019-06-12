@@ -28,11 +28,11 @@ class TestBaselines(object):
 
         # More features than datapoints
         classifier = svm.LinearSVC(
-            C=Cs, penalty='l2', verbose=1, dual=True, random_state=seed)
+            penalty='l2', verbose=1, dual=True, random_state=seed)
         classifier.fit(features.train, labels.train )
         score = classifier.score(features.test, labels.test )
 
-        print("SVM score: {}".format(score))
+        print("SVM val_acc: {}".format(score))
 
     def test_decision_trees_baseline(self, f_and_l):
 
@@ -45,7 +45,7 @@ class TestBaselines(object):
         probas = classifier.predict_proba(features.test)[:, 1]
         roc_auc = roc_auc_score(labels.test, probas)
 
-        print("Decision Trees score: {}; ROC Auc: {}".format(score, roc_auc))
+        print("Decision Trees val_acc: {}; ROC Auc: {}".format(score, roc_auc))
 
     def test_linear_classifier_baseline(self, f_and_l):
         """
@@ -62,11 +62,11 @@ class TestBaselines(object):
         probas = classifier.predict_proba(features.test)[:, 1]
         roc_auc = roc_auc_score(labels.test, probas)
 
-        print("Logistic regr score: {}; ROC Auc: {}".format(score, roc_auc))
+        print("Logistic val_acc: {}; ROC Auc: {}".format(score, roc_auc))
 
     def test_dense_model_baseline(self, f_and_l):
         params = {
-            'epochs': 500,
+            'epochs': 150,
             'batch_size': 500,
             'verbose': 1,
         }
@@ -77,9 +77,7 @@ class TestBaselines(object):
         model.add(Flatten(input_shape=(10020, 3)))
 
         model.add(Dense(units=1,
-                        activation='tanh',
-                        #kernel_regularizer=l1(0.1),
-                        #bias_constraint=EnforceNeg()))  # Negative bias are crucial for LRP
+                        activation='sigmoid',
                         ))
         model.compile(loss='binary_crossentropy',
                       optimizer='sgd',
@@ -100,4 +98,4 @@ class TestBaselines(object):
                                 #reduce_lr_cb
                             ])
         score = max(history.history['val_acc'])
-        print("DNN score: {}".format(score))
+        print("DNN val_acc: {}".format(score))

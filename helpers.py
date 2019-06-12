@@ -211,7 +211,10 @@ def string_to_featmat(data, embedding_type='2d', overwrite=False):
     feature_map[invalid_bool_mask] = [0, 0, 0]
     feature_map = np.reshape(feature_map, (n_subjects, 3*num_snp3))
     feature_map = feature_map.astype(np.double)
-
+    
+    # Rescale feature matrix
+    std = (np.mean(np.abs(feature_map)**2,axis=0)*data.shape[1])**(1/2)
+    feature_map = feature_map / std
     
     # Reshape Feature matrix
     if(embedding_type == '2d'):

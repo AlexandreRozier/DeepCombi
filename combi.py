@@ -17,11 +17,10 @@ def compute_top_k_indices(data, labels, filter_window_size, top_k , p):
     # Run Combi-Method and identify top_k best SNPs
     ### string data to feature_matrix ###
     featmat = string_to_featmat( data )
-    std = (np.mean(np.abs(featmat)**2,axis=0)*data.shape[1])**(1/2)
-    scaled_featmat = featmat / std
+    
     ### SVM training ###
-    classifier = svm.LinearSVC()
-    classifier.fit(scaled_featmat, labels)
+    classifier = svm.LinearSVC(C=Cs, penalty='l2', verbose=0, dual=True)
+    classifier.fit(featmat, labels)
 
     ### Postprocessing with Moving Average Filter ###
     weights = classifier.coef_[0] # n_snps * 3
