@@ -1,3 +1,4 @@
+import tensorflow as tensorflow
 import keras
 import math
 from keras import callbacks
@@ -8,14 +9,14 @@ from keras.initializers import TruncatedNormal, Constant
 from keras.constraints import MaxNorm, UnitNorm
 from keras.regularizers import l2
 from keras import optimizers
-from helpers import EnforceNeg, count_lines, generate_name_from_params
+from helpers import EnforceNeg, generate_name_from_params
 import numpy as np
 import os
-import tensorflow as tf
+import tensorflow as tensorflow
 from parameters_complete import TEST_DIR
 import multiprocessing
 import h5py
-from tensorflow.python import debug as tf_debug
+from tensorflow.python import debug as tensorflow_debug
 
 PREFIX = os.environ['PREFIX']
 
@@ -81,7 +82,7 @@ def create_dense_model(train_indices, test_indices, params):
 def create_conv_model(train_indices, test_indices, params):
     
 
-    #keras.backend.set_session(tf_debug.TensorBoardDebugWrapperSession(tf.Session(), "node10:6064"))
+    #keras.backend.set_session(tensorflow_debug.TensorBoardDebugWrapperSession(tensorflow.Session(), "node10:6064"))
     print(params)
     
     

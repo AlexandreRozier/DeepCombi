@@ -1,13 +1,13 @@
 import pytest
-from parameters_complete import DATA_DIR
+import tensorflow as tf
+from parameters_complete import DATA_DIR, ttbr as ttbr, seed, random_state , n_total_snps, noise_snps, inform_snps, rep      
 from keras.utils import to_categorical
-from helpers import string_to_featmat
+from helpers import string_to_featmat, generate_syn_phenotypes
 from sklearn.model_selection import train_test_split
 import numpy as np
 import os
 import math
 from time import time
-from helpers import count_lines
 import h5py
 
 class Label:
@@ -38,44 +38,46 @@ class Indices:
 TRAIN_PERCENTAGE = 0.80
 TEST_PERCENTAGE = 0.10
 VAL_PERCENTAGE = 1 - TRAIN_PERCENTAGE - TEST_PERCENTAGE
-seed = 666
-np.random.seed(seed)
-random_state = np.random.RandomState(seed)
-skiprows = 0
+
 
 features_path = os.path.join(DATA_DIR, 'syn_data.h5py')
-labels_path = os.path.join(DATA_DIR, 'syn_labels.h5py')
+labels_path = os.path.join(DATA_DIR, 'syn_ttbr_{}_labels.h5py'.format(ttbr))
+print(features_path)
 
 
 @pytest.fixture(scope="module")
-def raw_labels():   
-    with h5py.File(labels_path, 'r') as d:
-        return d['X'][:]
-        
-   
+def labels():   
+    labels_ = generate_syn_phenotypes(ttbr=ttbr,
+            root_path=DATA_DIR, n_info_snps=inform_snps, n_noise_snps=noise_snps)
+    return labels_
 
 @pytest.fixture(scope="module")
-def raw_data():
-    with h5py.File(features_path,'r') as d:
-        return d['X'][:]
+def h5py_data():
+    return h5py.File(features_path,'r')
 
 
 @pytest.fixture(scope="module")
-def f_and_l(raw_data, raw_labels):
+def f_and_l(h5py_data, labels):
 
     def _f_and_l(embedding_type="3d", categorical=True):
-        if categorical==True:
-            y_all = to_categorical(raw_labels)
-        else:
-            y_all = raw_labels
-        x_all = string_to_featmat(raw_data, embedding_type=embedding_type)
-        x_, x_test, y_, y_test = train_test_split(
-            x_all, y_all, test_size=TEST_PERCENTAGE, random_state=random_state)
-        x_train, x_val, y_train, y_val = train_test_split(
-            x_, y_, test_size=math.floor(VAL_PERCENTAGE/(1-TEST_PERCENTAGE)),  random_state=random_state)
+        f_dict = {}
+        l_dict = {}
+        for key in list(h5py_data.keys()):
+            if categorical==True:
+                y_all = to_categorical((labels[key]+1)/2)
+            else:
+                y_all = labels[key]
+            x_all = string_to_featmat(h5py_data[key][:], embedding_type=embedding_type)
+            x_, x_test, y_, y_test = train_test_split(
+                x_all, y_all, test_size=TEST_PERCENTAGE, random_state=random_state)
+            x_train, x_val, y_train, y_val = train_test_split(
+                x_, y_, test_size=math.floor(VAL_PERCENTAGE/(1-TEST_PERCENTAGE)),  random_state=random_state)
 
-        print('Dataset sizes: Train: {}; Test: {}; Validation: {}'.format(len(x_train),len(x_test), len(x_val)))
-        return Features(x_train, x_test, x_val, x_all), Label(y_train, y_test, y_val, y_all)
+            l_dict[key] = Label(y_train, y_test, y_val, y_all)
+            f_dict[key] = Features(x_train, x_test, x_val, x_all)
+            print('Dataset sizes: Train: {}; Test: {}; Validation: {}'.format(len(x_train),len(x_test), len(x_val)))
+        
+        return f_dict, l_dict
     
     return _f_and_l
 

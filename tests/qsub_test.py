@@ -1,6 +1,8 @@
 
 import math
 import os
+import tensorflow as tensorflow
+
 import keras
 import numpy as np
 import pytest

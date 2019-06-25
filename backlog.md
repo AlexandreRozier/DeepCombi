@@ -69,11 +69,44 @@ Added LRP through innvestigate
 - Avoid mean centering when it's not for SVM
 - Baselines on 10 000 syn data:  
 
-| Baseline   | Max train acc | Max val acc      | AUC Roc         |
-| ------------- |:-------------:| -----:           |-----: |
-| dense         | 1.0           | 0.65               |
-| svm + l2           | ?             |   0.63         |   0.67 |  Not implemented |
-| decision trees | ?             |   0.6737373737373737         |   0.6737373737373737 |
-| logistic regression + l2| ?        |     0.6595        |    0.6629 |
+| Baseline      | Max train acc | Max val acc           | AUC Roc         |
+| ------------- |:-------------:| -----:                |-----:         |
+| dense         | 1.0           | 0.65                  |
+| svm + l2      | ?             |   0.63                |   0.67 |  Not implemented |
+| decision trees | ?            |   0.6737373737373737  |   0.6737373737373737 |
+| logistic regression + l2| ?   |     0.6595            |   0.6629 |
   
   **FEATURE MATRIX FOR COMBI NEEDS TO BE SCALED**
+
+# 10 - 14 /  05
+
+- Fixed data generation once for all
+- Tried SVM on only the 20 informative SNPs:
+
+| N_subjects    | SVM val_acc       | C                     |
+| ------------- |:-------------:    |:--:                   |
+| 300           | 0.83              |C=0.00091              |
+
+| N_subjects    | Kernel SVM val_acc        | C             |
+| ------------- |:-------------:            |:--:           |
+| 300           | 0.83                      |C=1            |
+
+N_subject= 4000
+
+| Baseline    |   train_acc | val_acc        | C             |
+| ------------- |---------- |:-------------:            |:--:           |
+| svm          | 0.76 |0.76                    |C=0.077        |
+| kernel svm      |?   | 0.76                    |C=0.715        |
+| decision trees  |?        | 0.71                   | NA      |
+| linear          |?| 0.74                   |NA        |
+
+## Test of the ttbr parameter (tower to base ratio)
+Mit 4000 subjects, 10 000 noise_snps, 20 inform_snps, 50 different C-values:
+
+- ttbr = 6:    gibt    svm train_acc 1.0 +/- 0.2, val_acc 0.665  + wählt snps, die zur Tower gehören  
+
+- ttbr = 1:    gibt    svm train_acc 0.85 +/- 0.2, val_acc 0.53 + kann kein snps wählen, die zur Tower gehören
+
+>So die ergebnisse machen total Sinn   
+
+**Aber** mit ttbr =1 , die Tower existiert noch (~ log-pvalue = 80 im vergleich mit den anderen, die alle 0 sind), **trotz die SVM die nicht erkennen kann**.
