@@ -1,26 +1,23 @@
 
 import math
 import os
-import tensorflow as tensorflow
 
-import keras
+import tensorflow 
+from helpers import chi_square, string_to_featmat, EnforceNeg, generate_name_from_params
+keras.constraints.EnforceNeg = EnforceNeg # Absolutely crucial
+
 import numpy as np
-import pytest
 from tqdm import tqdm
 import pandas as pd
 import pickle
 import time
-import keras.constraints
 from sklearn.model_selection import train_test_split, KFold
-from helpers import chi_square, string_to_featmat, EnforceNeg, generate_name_from_params
-keras.constraints.EnforceNeg = EnforceNeg # Absolutely crucial
 
 from parameters_complete import (Cs, classy, filter_window_size,
                                  p_pnorm_filter, pnorm_feature_scaling,
                                  svm_rep, TEST_DIR, TALOS_OUTPUT_DIR, DATA_DIR, PARAMETERS_DIR)
 from models import create_conv_model, create_dense_model
 
-@pytest.mark.incremental
 class TestQsub(object):
     
 

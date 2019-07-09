@@ -1,5 +1,5 @@
 import numpy as np
-from helpers import chi_square, string_to_featmat, generate_syn_phenotypes
+from helpers import chi_square, string_to_featmat, generate_syn_phenotypes, compute_metrics, plot_pvalues
 from combi import combi_method, permuted_combi_method
 from sklearn.model_selection import train_test_split
 import keras
@@ -19,7 +19,6 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
-import pytest
 from joblib import Parallel, delayed
 from sklearn import svm
 from parameters_complete import thresholds, IMG_DIR, TEST_DIR, DATA_DIR, pnorm_feature_scaling, svm_rep, Cs, classy, n_total_snps, inform_snps, noise_snps
@@ -31,7 +30,6 @@ from parameters_complete import svm_epsilon, filter_window_size, p_pnorm_filter,
 true_pvalues = np.zeros((rep, n_total_snps), dtype=bool)
 true_pvalues[:,int(noise_snps/2):int(noise_snps/2)+inform_snps] = True
 
-@pytest.mark.incremental
 class TestCombi(object):
     
 
@@ -133,29 +131,6 @@ class TestCombi(object):
             self.plot_pvalues(complete_pvalues, top_indices_sorted, top_pvalues, axes[i])
         fig.savefig(os.path.join(IMG_DIR,'combi_multiple_runs.png'), dpi=100)
     
-    
-    def plot_pvalues(self, complete_pvalues, top_indices_sorted, top_pvalues, axes ):
-        print("Performing complete X2 to prepare plotting...")
-        axes.scatter(range(len(complete_pvalues)),-np.log10(complete_pvalues), marker='.',color='b')
-        axes.scatter(top_indices_sorted,-np.log10(top_pvalues), marker='x',color='r')
-        axes.set_ylabel('-log10(pvalue)')
-        axes.set_xlabel('SNP position')
-
-
-    def compute_metrics(self, pvalues,truth,rep, threshold):
-        selected_pvalues_mask = (pvalues <= threshold) # n, n_snp
-
-        tp = (selected_pvalues_mask & truth).sum()
-        fp = (selected_pvalues_mask & np.logical_not(truth)).sum()
-        tpr = tp / (rep * inform_snps)
-        enfr = fp / rep # ENFR: false rejection of null hyp, that is FALSE POSITIVE
-        fwer = ((selected_pvalues_mask & np.logical_not(truth)).sum(axis=1) > 0).sum()/rep
-        precision = (tp / (tp + fp)) if (tp + fp)!=0 else 0
-
-        assert 0 <= tpr <= 1
-        assert 0 <= fwer <= 1
-        assert 0 <= precision <= 1
-        return tpr, enfr, fwer, precision
         
 
 
@@ -183,24 +158,24 @@ class TestCombi(object):
             return pvalues_filled
 
         colors = cm.rainbow(np.linspace(0, 1, len(ttbr_list)))
-        for i,ttbr in enumerate(tqdm(ttbr_list)):
+        for j,ttbr in enumerate(tqdm(ttbr_list)):
             labels = generate_syn_phenotypes(ttbr=ttbr,root_path=DATA_DIR, n_info_snps=inform_snps, n_noise_snps=noise_snps)
             
             pvalues_per_run_combi = Parallel(n_jobs=-1, require='sharedmem')(delayed(p_compute_pvalues)(h5py_data[str(i)][:], labels[str(i)]) for i in tqdm(range(rep)))
             pvalues_per_run_x2 = Parallel(n_jobs=-1, require='sharedmem')(delayed(chi_square)(h5py_data[str(i)][:], labels[str(i)]) for i in tqdm(range(rep)))
            
-            res_combi = np.array(Parallel(n_jobs=-1, require='sharedmem')(delayed(self.compute_metrics)(pvalues_per_run_combi, true_pvalues, rep, threshold) for threshold in tqdm(thresholds)))
-            res_x2 = np.array(Parallel(n_jobs=-1, require='sharedmem')(delayed(self.compute_metrics)(pvalues_per_run_x2, true_pvalues, rep, threshold) for threshold in tqdm(thresholds)))
+            res_combi = np.array(Parallel(n_jobs=-1, require='sharedmem')(delayed(compute_metrics)(pvalues_per_run_combi, true_pvalues, rep, threshold) for threshold in tqdm(thresholds)))
+            res_x2 = np.array(Parallel(n_jobs=-1, require='sharedmem')(delayed(compute_metrics)(pvalues_per_run_x2, true_pvalues, rep, threshold) for threshold in tqdm(thresholds)))
 
             tpr_combi, enfr_combi, fwer_combi, precision_combi = res_combi.T
             tpr_x2, enfr_x2, fwer_x2, precision_x2 = res_x2.T
 
             assert fwer_combi.max() <=1 and fwer_combi.min() >= 0
-            ax1.plot(fwer_combi,tpr_combi,'-o', color=colors[i],label='Combi method - ttbr={}'.format(ttbr))
-            ax1.plot(fwer_x2,tpr_x2,'-x',color=colors[i], label='RPVT method - ttbr={}'.format(ttbr))
+            ax1.plot(fwer_combi,tpr_combi,'-o', color=colors[j],label='Combi method - ttbr={}'.format(ttbr))
+            ax1.plot(fwer_x2,tpr_x2,'-x',color=colors[j], label='RPVT method - ttbr={}'.format(ttbr))
 
-            ax2.plot(tpr_combi,precision_combi,'-o',color=colors[i], label='Combi method - ttbr={}'.format(ttbr))
-            ax2.plot(tpr_x2,precision_x2,'-x',color=colors[i], label='RPVT method - ttbr={}'.format(ttbr))
+            ax2.plot(tpr_combi,precision_combi,'-o',color=colors[j], label='Combi method - ttbr={}'.format(ttbr))
+            ax2.plot(tpr_x2,precision_x2,'-x',color=colors[j], label='RPVT method - ttbr={}'.format(ttbr))
             
         ax1.legend()
         ax2.legend()
@@ -235,7 +210,7 @@ class TestCombi(object):
             
             pvalues_per_run_combi = Parallel(n_jobs=-1, require='sharedmem')(delayed(f)(h5py_data[str(i)][:], labels[str(i)]) for i in range(rep))
 
-            res_combi = np.array(Parallel(n_jobs=-1, require='sharedmem')(delayed(self.compute_metrics)(pvalues_per_run_combi, true_pvalues, rep, threshold) for threshold in tqdm(thresholds)))
+            res_combi = np.array(Parallel(n_jobs=-1, require='sharedmem')(delayed(compute_metrics)(pvalues_per_run_combi, true_pvalues, rep, threshold) for threshold in tqdm(thresholds)))
 
             tpr, enfr, fwer, precision = res_combi.T
 
@@ -279,7 +254,7 @@ class TestCombi(object):
             
             pvalues_per_run = Parallel(n_jobs=-1, require='sharedmem')(delayed(f)(h5py_data[str(i)][:], labels[str(i)]) for i in range(rep))
             
-            res_combi = np.array(Parallel(n_jobs=-1, require='sharedmem')(delayed(self.compute_metrics)(pvalues_per_run, true_pvalues, rep, threshold) for threshold in tqdm(thresholds)))
+            res_combi = np.array(Parallel(n_jobs=-1, require='sharedmem')(delayed(compute_metrics)(pvalues_per_run, true_pvalues, rep, threshold) for threshold in tqdm(thresholds)))
 
             tpr, enfr, fwer, precision = res_combi.T
 

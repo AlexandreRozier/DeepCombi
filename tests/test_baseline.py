@@ -1,5 +1,4 @@
 import os
-import pytest
 from sklearn import svm
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.linear_model import LogisticRegression
@@ -22,7 +21,6 @@ matplotlib.use('Agg')
 
 from matplotlib import pyplot as plt
 
-@pytest.mark.incremental
 class TestBaselines(object):
 
     CONF_PATH = os.path.join(PARAMETERS_DIR, os.environ['SGE_TASK_ID'])

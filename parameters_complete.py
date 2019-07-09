@@ -16,15 +16,20 @@ TEST_DIR = os.path.join(ROOT_DIR,'tests')
 IMG_DIR = os.path.join(ROOT_DIR,'img')
 TALOS_OUTPUT_DIR = os.path.join(TEST_DIR,'talos_output')
 PARAMETERS_DIR = os.path.join(TEST_DIR,'parameters')
+SAVED_MODELS_DIR = os.path.join(TEST_DIR,'exported_models')
 
 ########
-ttbr = 1.5
+ttbr = 6
 n_subjects= 300  
 inform_snps= 20  # 15-20
 noise_snps= 10000  # 10,000, even
 n_total_snps = inform_snps + noise_snps
-rep= 1000
 top_k= 30
+
+################################
+rep= 20 #<<<<<<<<<<<<<<<<<<<<<<<<<#########################
+nb_of_nodes = 31
+
 
 ####
 top_k_multi = top_k*3

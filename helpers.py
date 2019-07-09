@@ -2,7 +2,7 @@ from scipy.stats import chi2
 import math
 import numpy as np
 import sklearn.preprocessing as pp
-import tensorflow as tensorflow
+import tensorflow
 from keras import backend as K
 from keras.constraints import Constraint
 import os
@@ -10,11 +10,14 @@ import io
 from tqdm import tqdm
 import h5py
 import keras
+import torch
 from tqdm import tqdm
-from parameters_complete import DATA_DIR, ttbr as ttbr, n_subjects, pnorm_feature_scaling
+from parameters_complete import DATA_DIR, ttbr as ttbr, n_subjects, pnorm_feature_scaling, inform_snps
 from parameters_complete import rep
+from joblib import Parallel, delayed
+from torch.utils.data.sampler import SubsetRandomSampler
+import torch.utils.data as data_utils
 
-from tqdm import tqdm
 
 
 def generate_name_from_params(params):
@@ -60,7 +63,6 @@ def generate_syn_genotypes(root_path=DATA_DIR, prefix="syn", n_subjects=n_subjec
     """ Generate synthetic genotypes and labels by removing all minor allels with low frequency, and missing SNPs.
         First step of data preprocessing, has to be followed by string_to_featmat()
         > Checks that that each SNP in each chromosome has at most 2 unique values in the whole dataset.
-        # TODO When rep > 1, choose random consecutive informative SNPs
     """
     print("Starting synthetic genotypes generation...")
 
@@ -112,102 +114,127 @@ def generate_syn_phenotypes(root_path=DATA_DIR, ttbr=ttbr, prefix="syn", n_info_
     """
     > Assumes that each SNP has at most 3 unique values in the whole dataset (Two allels and possibly unmapped values)
     IMPORTANT: DOES NOT LOAD FROM FILE
+    returns: dict(key, labels)
     """
     print("Starting synthetic phenotypes generation...")
-
 
     # Generate Labels from UNIQUE SNP at position 9
     info_snp_idx = int(n_noise_snps/2) + int(n_info_snps/2)
 
-    with h5py.File(os.path.join(root_path, prefix+'_data.h5py'), 'r') as file:
-        labels_dict = {}
-        for key in list(file.keys()):
-            genotype = file[key][:]
 
-            n_indiv = genotype.shape[0]
-            info_snp = genotype[:,  info_snp_idx]  # (n,2)
-            major_allel = np.max(info_snp)
+    def f(genotype, key, labels_dict):
+        n_indiv = genotype.shape[0]
+        info_snp = genotype[:,  info_snp_idx]  # (n,2)
+        major_allel = np.max(info_snp)
 
-            major_mask_1 = (info_snp[:, 0] == major_allel)  # n
-            major_mask_2 = (info_snp[:, 1] == major_allel)  # n
-            invalid_mask = (info_snp[:, 0] == 48) | (info_snp[:, 1] == 48)
+        major_mask_1 = (info_snp[:, 0] == major_allel)  # n
+        major_mask_2 = (info_snp[:, 1] == major_allel)  # n
+        invalid_mask = (info_snp[:, 0] == 48) | (info_snp[:, 1] == 48)
 
-            nb_major_allels = np.sum(
-                [major_mask_1, major_mask_2, invalid_mask], axis=0) - 1.0  # n
-            probabilities = 1 / \
-                (1+np.exp(-ttbr * (nb_major_allels - np.median(nb_major_allels))))
-            random_vector = np.random.uniform(low=0.0, high=1.0, size=n_indiv)
-            labels = np.where(probabilities > random_vector, 1, -1)
-            assert genotype.shape[0] == labels.shape[0]
-            labels_dict[key] = labels
+        nb_major_allels = np.sum(
+            [major_mask_1, major_mask_2, invalid_mask], axis=0) - 1.0  # n
+        probabilities = 1 / \
+            (1+np.exp(-ttbr * (nb_major_allels - np.median(nb_major_allels))))
+        random_vector = np.random.uniform(low=0.0, high=1.0, size=n_indiv)
+        labels = np.where(probabilities > random_vector, 1, -1)
+        assert genotype.shape[0] == labels.shape[0]
+        labels_dict[key] = labels
+        del genotype
+
+    labels_dict = {}
+    with h5py.File(os.path.join(root_path, prefix+'_data.h5py'), 'r') as h5py_file:
+        
+        Parallel(n_jobs=-1, require='sharedmem')(delayed(f)(h5py_file[str(i)][:],str(i), labels_dict) for i in tqdm(range(rep)))
+       
     
     return labels_dict
 
 
-def string_to_featmat(data, embedding_type='2d'):
+def string_to_featmat(h5py_data, embedding_type='2d', overwrite=False):
     """ - Transforms numpy matrix of chars to a tensor of features.
         - Encode SNPs with error to [0,0,0] 
         - Does NOT change shape or perform modifications
         Second and final step of data preprocessing.
     """
     
-    ###  Global Parameters   ###
-    (n_subjects, num_snp3, _) = data.shape
+    fm_path = os.path.join(DATA_DIR, embedding_type+'_syn_fm.h5py')
+    data_path = os.path.join(DATA_DIR,'syn_data.h5py')
 
-    # Computes lexicographically highest and lowest nucleotides for each position of each strand
-    lexmax_overall_per_snp = np.max(data, axis=(0, 2))
-    data[data == 48] = 255
+    if overwrite:
+        try:
+            os.remove(fm_path)
+        except expression as identifier:
+            pass
 
-    lexmin_overall_per_snp = np.min(data, axis=(0, 2))
-    data[data == 255] = 48
-
-    # Masks showing valid or invalid indices
-    # SNPs being unchanged amongst the whole dataset, hold no information
-
-    lexmin_mask_per_snp = np.tile(lexmin_overall_per_snp, [n_subjects, 1])
-    lexmax_mask_per_snp = np.tile(lexmax_overall_per_snp, [n_subjects, 1])
-
-    invalid_bool_mask = (lexmin_mask_per_snp == lexmax_mask_per_snp)
-
-    allele1 = data[:, :, 0]
-    allele2 = data[:, :, 1]
-
-    # indices where allel1 equals the lowest value
-    allele1_lexminor_mask = (allele1 == lexmin_mask_per_snp)
-    # indices where allel1 equals the highest value
-    allele1_lexmajor_mask = (allele1 == lexmax_mask_per_snp)
-    # indices where allel2 equals the lowest value
-    allele2_lexminor_mask = (allele2 == lexmin_mask_per_snp)
-    # indices where allel2 equals the highest value
-    allele2_lexmajor_mask = (allele2 == lexmax_mask_per_snp)
-
-    f_m = np.zeros((n_subjects, num_snp3), dtype=(int, 3))
-
-    f_m[allele1_lexminor_mask & allele2_lexminor_mask] = [1, 0, 0]
-    f_m[(allele1_lexmajor_mask & allele2_lexminor_mask) |
-        (allele1_lexminor_mask & allele2_lexmajor_mask)] = [0, 1, 0]
-    f_m[allele1_lexmajor_mask & allele2_lexmajor_mask] = [0, 0, 1]
-    f_m[invalid_bool_mask] = [0, 0, 0]
-    f_m = np.reshape(f_m, (n_subjects, 3*num_snp3))
-    f_m = f_m.astype(np.double)
-
-    # Rescale feature matrix
-    f_m -= np.mean(f_m, axis=0)
-    stddev = (np.mean(np.abs(f_m)**pnorm_feature_scaling, axis=0)
-              * f_m.shape[1])**(1.0/pnorm_feature_scaling)
+    if not overwrite:
+        try:
+            return h5py.File(fm_path, 'r')
+        except (FileNotFoundError, OSError):
+            print('Featmat not found: generating new one...')
     
-    # Safe division
-    f_m = np.divide(f_m, stddev, out=np.zeros_like(f_m), where=stddev!=0)
+    with h5py.File(fm_path, 'w') as feature_file:
+        with h5py.File(data_path, 'r') as data_file:
+            for key in tqdm(list(data_file.keys())):
+                data = data_file[key][:]
+                ###  Global Parameters   ###
+                (n_subjects, num_snp3, _) = data.shape
 
-   
-    # Reshape Feature matrix
-    if(embedding_type == '2d'):
-        pass
-    elif(embedding_type == '3d'):
-        f_m = np.reshape(f_m, (n_subjects, num_snp3, 3))
+                # Computes lexicographically highest and lowest nucleotides for each position of each strand
+                lexmax_overall_per_snp = np.max(data, axis=(0, 2))
+                data[data == 48] = 255
 
-    
-    return f_m
+                lexmin_overall_per_snp = np.min(data, axis=(0, 2))
+                data[data == 255] = 48
+
+                # Masks showing valid or invalid indices
+                # SNPs being unchanged amongst the whole dataset, hold no information
+
+                lexmin_mask_per_snp = np.tile(lexmin_overall_per_snp, [n_subjects, 1])
+                lexmax_mask_per_snp = np.tile(lexmax_overall_per_snp, [n_subjects, 1])
+
+                invalid_bool_mask = (lexmin_mask_per_snp == lexmax_mask_per_snp)
+
+                allele1 = data[:, :, 0]
+                allele2 = data[:, :, 1]
+
+                # indices where allel1 equals the lowest value
+                allele1_lexminor_mask = (allele1 == lexmin_mask_per_snp)
+                # indices where allel1 equals the highest value
+                allele1_lexmajor_mask = (allele1 == lexmax_mask_per_snp)
+                # indices where allel2 equals the lowest value
+                allele2_lexminor_mask = (allele2 == lexmin_mask_per_snp)
+                # indices where allel2 equals the highest value
+                allele2_lexmajor_mask = (allele2 == lexmax_mask_per_snp)
+
+                f_m = np.zeros((n_subjects, num_snp3), dtype=(int, 3))
+
+                f_m[allele1_lexminor_mask & allele2_lexminor_mask] = [1, 0, 0]
+                f_m[(allele1_lexmajor_mask & allele2_lexminor_mask) |
+                    (allele1_lexminor_mask & allele2_lexmajor_mask)] = [0, 1, 0]
+                f_m[allele1_lexmajor_mask & allele2_lexmajor_mask] = [0, 0, 1]
+                f_m[invalid_bool_mask] = [0, 0, 0]
+                f_m = np.reshape(f_m, (n_subjects, 3*num_snp3))
+                f_m = f_m.astype(np.double)
+
+                # Rescale feature matrix
+                f_m -= np.mean(f_m, axis=0)
+                stddev = (np.mean(np.abs(f_m)**pnorm_feature_scaling, axis=0)
+                        * f_m.shape[1])**(1.0/pnorm_feature_scaling)
+                
+                # Safe division
+                f_m = np.divide(f_m, stddev, out=np.zeros_like(f_m), where=stddev!=0)
+
+            
+                # Reshape Feature matrix
+                if(embedding_type == '2d'):
+                    pass
+                elif(embedding_type == '3d'):
+                    f_m = np.reshape(f_m, (n_subjects, num_snp3, 3))
+
+                feature_file.create_dataset(key, data=f_m)
+                del data
+
+    return h5py.File(fm_path, 'r')
 
 
 
@@ -317,6 +344,37 @@ def chi_square(data, labels):
     pvalues = chi2.sf(chisq_value, 2)
     return pvalues
 
+def plot_pvalues(complete_pvalues, top_indices_sorted, axes ):
+        print("Performing complete X2 to prepare plotting...")
+        axes.scatter(range(len(complete_pvalues)),-np.log10(complete_pvalues), marker='.',color='b')
+        axes.scatter(top_indices_sorted,-np.log10(complete_pvalues[top_indices_sorted]), marker='x',color='r')
+        axes.set_ylabel('-log10(pvalue)')
+        axes.set_xlabel('SNP position')
+
+    
+def compute_metrics(pvalues,truth,rep, threshold):
+    selected_pvalues_mask = (pvalues <= threshold) # n, n_snp
+
+    tp = (selected_pvalues_mask & truth).sum()
+    fp = (selected_pvalues_mask & np.logical_not(truth)).sum()
+    tpr = tp / (rep * inform_snps)
+    enfr = fp / rep # ENFR: false rejection of null hyp, that is FALSE POSITIVE
+    fwer = ((selected_pvalues_mask & np.logical_not(truth)).sum(axis=1) > 0).sum()/rep
+    precision = (tp / (tp + fp)) if (tp + fp)!=0 else 0
+
+    assert 0 <= tpr <= 1
+    assert 0 <= fwer <= 1
+    assert 0 <= precision <= 1
+    return tpr, enfr, fwer, precision
+
+def postprocess_weights(weights,top_k, filter_window_size, p_svm, p_pnorm_filter):
+    weights = abs(weights)/np.linalg.norm(weights, ord=2)
+    weights = weights.reshape(-1, 3) # Group  weights by 3 (yields locus's importance measure)
+    weights = np.sum(weights**p_svm, axis=1)**(1.0/p_svm)
+    weights /= np.linalg.norm(weights, ord=2)
+    weights = moving_average(weights,filter_window_size, p=p_pnorm_filter) 
+    top_indices_sorted = weights.argsort()[::-1][:top_k] # Gets indices of top_k greatest elements
+    return top_indices_sorted
 
 class EnforceNeg(Constraint):
     """Constrains the weights to be negative.
@@ -325,3 +383,80 @@ class EnforceNeg(Constraint):
     def __call__(self, w):
         w *= K.cast(K.greater_equal(-w, 0.), K.floatx())
         return w
+
+
+def train_keras_model(model, data, labels, indices, g):
+    history = model.fit(x=data[indices.train], y=labels[indices.train],
+                            validation_data=(data[indices.test], labels[indices.test]),
+                            epochs=g['epochs'],
+                            verbose=0)
+    return model, history.history
+
+
+def train_torch_model(model, data, labels, indices, g):
+
+    criterion = torch.nn.CrossEntropyLoss(reduction='sum')
+    optimizer = torch.optim.SGD(model.parameters(), lr=g['lr'], weight_decay=g['l2_reg'])
+
+    train_sampler = SubsetRandomSampler(indices.train)
+    validation_sampler = SubsetRandomSampler(indices.test)
+    dataset = data_utils.TensorDataset(data, labels)
+    train_loader = torch.utils.data.DataLoader(dataset, batch_size=g['batch_size'], sampler=train_sampler)
+    validation_loader = torch.utils.data.DataLoader(dataset,batch_size=g['batch_size'], sampler=validation_sampler)
+    
+    running_train_loss = np.zeros(g['epochs'])
+    running_train_acc = np.zeros(g['epochs'])
+    running_val_loss = np.zeros(g['epochs'])
+    running_val_acc = np.zeros(g['epochs'])
+    
+    for epoch in range(g['epochs']):
+        # TRAIN
+        model.train()
+        correct = 0
+        total = 0
+        for batch, y in train_loader:
+
+            optimizer.zero_grad()
+            loss = criterion(model(batch), y)
+            running_train_loss[epoch] += loss.item()
+            loss.backward()
+            optimizer.step()
+            _, predicted = torch.max(model(batch).data, 1)
+            total += y.size(0)
+            correct += (predicted == y).sum().item()
+        running_train_acc[epoch] = 100 * correct / total
+
+        # EVAL
+        model.eval() 
+        correct = 0
+        total = 0
+        for batch, y in validation_loader:
+            # Loss
+            outputs = model(batch) # N * 2
+            running_val_loss[epoch] += criterion(outputs, y).item()
+            # Val acc
+            _, predicted = torch.max(outputs.data, 1)
+            total += y.size(0)
+            correct += (predicted == y).sum().item()
+        running_val_acc[epoch] = 100 * correct / total
+    model.train()
+    return model, dict(val_loss=running_val_loss, 
+                       val_acc=running_val_acc,
+                       train_loss=running_train_loss,
+                       train_acc=running_train_acc)
+
+
+def evaluate_torch_model(model, data, labels):
+ 
+    dataset = data_utils.TensorDataset(data, labels)
+    data_loader = torch.utils.data.DataLoader(dataset)
+
+    total = 0
+    correct = 0
+    for batch, y in data_loader:
+        outputs = model(batch) # N * 2
+        # Val acc
+        _, predicted = torch.max(outputs.data, 1)
+        total += y.size(0)
+        correct += (predicted == y).sum().item()
+    return (100 * correct / total)

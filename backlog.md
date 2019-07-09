@@ -110,3 +110,20 @@ Mit 4000 subjects, 10 000 noise_snps, 20 inform_snps, 50 different C-values:
 >So die ergebnisse machen total Sinn   
 
 **Aber** mit ttbr =1 , die Tower existiert noch (~ log-pvalue = 80 im vergleich mit den anderen, die alle 0 sind), **trotz die SVM die nicht erkennen kann**.
+
+# 24 - 28
+
+Replication of Combi's results, implementation of LRP as the first step.
+Plotted combi-lrp tpr-fwer comparisons, dummy dense network performs ~ 20% more poorly
+Now trying to find a good model achieving low val_loss, but explainable. Cf Montaez.
+Also discussed of co-authoring a paper. 
+
+# 30 - 05
+
+Implemented LRP in torch.
+Multi node hparams search <3
+Now needs to get rid of sequential and implement Net.....
+
+# 08 - 13
+
+Dense montaez w/ best params has similar val_acc performance than SVM, in average!

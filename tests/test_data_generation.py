@@ -1,6 +1,4 @@
 import h5py
-import hdf5storage
-import pytest
 import scipy
 import os
 import numpy as np
@@ -69,11 +67,11 @@ class TestDataGeneration(object):
         with h5py.File(os.path.join(DATA_DIR, 'syn_data.h5py'), 'r') as d:
             raw_data = d['0'][:]
             fm2 = string_to_featmat(
-                raw_data, embedding_type='2d')
+                raw_data, embedding_type='2d', overwrite=True)
             fm3 = string_to_featmat(
-                raw_data, embedding_type='3d')
-            assert fm2.shape[0] == n_subjects
-            assert fm3.shape[0] == n_subjects
-            assert fm2.shape[1] == n_total_snps * 3
-            assert fm3.shape[1] == n_total_snps
+                raw_data, embedding_type='3d', overwrite=True)
+            assert fm2['0'].shape[0] == n_subjects
+            assert fm3['0'].shape[0] == n_subjects
+            assert fm2['0'].shape[1] == n_total_snps * 3
+            assert fm3['0'].shape[1] == n_total_snps
 
