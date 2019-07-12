@@ -73,3 +73,68 @@ class ExLinear(torch.nn.Linear):
         R = torch.mul(C, prev_activ)
         return R
 
+
+
+### PYTORCH MODELS
+def create_montaez_pytorch_model(params):
+    
+    return ExSequential(
+        ExLinear(n_total_snps * 3, 10, bias=False),
+        ExReLU(),
+        ExDropout(p=params['dropout_rate']),
+        ExLinear(10, 10, bias=False),
+        ExReLU(),
+        ExDropout(p=params['dropout_rate']),
+        ExLinear(10, 2, bias=False),
+        ExReLU(),
+    )
+def create_dummy_conv_pytorch_model():
+    return ExSequential(
+        ExConv1d(1 , 10, 100, bias=False),
+        ExReLU(),
+        
+        ExLinear(10, 2, bias=False),
+        ExReLU(),
+    )
+
+def create_dummy_pytorch_linear():
+    return ExSequential(
+        ExLinear(n_total_snps * 3, 2, bias=False),
+        ExReLU(),
+    )
+
+
+class ExConvNet(torch.nn.Module):
+    def __init__(self, *args, **kwargs):
+        super().__init__( *args, **kwargs)
+        self.conv1 = ExConv1d(1, 10, kernel_size=100, bias=False) #(10, (n_total_snps*3 - 99))
+        self.lin1 = ExLinear(((n_total_snps*3 - 99)) * self.conv1.out_channels, 2, bias=False)
+
+
+    def forward(self, x):
+        x =self.conv1(x)
+        x = F.relu(x)
+  
+        x = x.view(-1, ((n_total_snps*3 - 99)) * 10)
+        x = self.lin1(x)
+        x = F.relu(x)
+        return x
+
+    def relprop(self,A, R):
+        # Populate inputs
+        self.conv1.input = A
+        self.lin1.input = self.conv1(self.conv1.input)
+
+        # Z rule
+        self.conv1.weight.data = self.conv1.weight.data.pow(2)
+        #self.conv1.bias.data = torch.ones_like(self.conv1.bias.data)
+        self.conv1.input.data = torch.ones_like(self.conv1.input.data)
+
+        # LRP !
+        R = self.lin1.relprop(R)
+        R = R.view(-1, self.conv1.out_channels, n_total_snps*3 - 99) 
+        R = self.conv1.relprop(R)
+        return R
+
+    
+        

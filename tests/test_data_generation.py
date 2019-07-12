@@ -9,9 +9,9 @@ from parameters_complete import (
 
 
 class TestDataGeneration(object):
-
+    pass
     
-
+        
     def test_syntest_text_to_hdf5(self):
 
         filename = 'data/bett_data.txt'
@@ -33,11 +33,11 @@ class TestDataGeneration(object):
             file.create_dataset("X", data=labels)
     
 
-    def test_synthetic_genotypes_generation(self):
-        """ Generate synthetic genotypes
-        """
+    def test_synthetic_genotypes_generation(self, rep):
+        
         data_path = generate_syn_genotypes(root_path=DATA_DIR, n_subjects=n_subjects,
-                                           n_info_snps=inform_snps, n_noise_snps=noise_snps)
+                                           n_info_snps=inform_snps, n_noise_snps=noise_snps, 
+                                           quantity=rep)
 
         with h5py.File(data_path, 'r') as file:
             print("Veryifying the generated phenotypes...")
@@ -48,18 +48,17 @@ class TestDataGeneration(object):
             # Checks that at most 3 unique allels exist
             check_genotype_unique_allels(genotype)
 
-    def test_synthetic_phenotypes_generation(self):
-        """ Generate synthetic phenotypes
-        """
+    def test_synthetic_phenotypes_generation(self, rep):
+       
         labels = generate_syn_phenotypes(ttbr=ttbr,
-            root_path=DATA_DIR, n_info_snps=inform_snps, n_noise_snps=noise_snps)['0']
+            root_path=DATA_DIR, n_info_snps=inform_snps, n_noise_snps=noise_snps, quantity=rep)['0']
         assert(labels.shape[0] == n_subjects)
 
     
-    def test_proportion_of_labels(self):
+    def test_proportion_of_labels(self, rep):
         
         labels = generate_syn_phenotypes(ttbr=ttbr,
-            root_path=DATA_DIR, n_info_snps=inform_snps, n_noise_snps=noise_snps)['0']
+            root_path=DATA_DIR, n_info_snps=inform_snps, n_noise_snps=noise_snps, quantity=rep)['0']
         print(sum(labels == 1))
         print(sum(labels == -1))
 

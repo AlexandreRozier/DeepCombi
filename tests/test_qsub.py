@@ -4,6 +4,7 @@ import os
 
 import tensorflow 
 from helpers import chi_square, string_to_featmat, EnforceNeg, generate_name_from_params
+import keras
 keras.constraints.EnforceNeg = EnforceNeg # Absolutely crucial
 
 import numpy as np

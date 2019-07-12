@@ -9,7 +9,7 @@ from keras.models import Sequential
 from keras.layers import Dense, Flatten, Activation
 from keras.callbacks import EarlyStopping, ReduceLROnPlateau
 from keras.regularizers import l1
-from parameters_complete import (Cs, PARAMETERS_DIR, DATA_DIR,TEST_DIR, n_total_snps, seed)
+from parameters_complete import (Cs, PARAMETERS_DIR, DATA_DIR,TEST_DIR,IMG_DIR, n_total_snps, seed)
 from models import DataGenerator
 from helpers import EnforceNeg, generate_name_from_params
 
@@ -172,4 +172,4 @@ class TestBaselines(object):
         ax4.axvspan(5001, 5020, alpha=0.5, color='red')
         ax4.legend(loc="upper right")
 
-        f.savefig(os.path.join(TEST_DIR,'lrp.png'))
+        f.savefig(os.path.join(IMG_DIR,'lrp.png'))

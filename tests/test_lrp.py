@@ -1,6 +1,6 @@
 import torch 
 import os
-from models import create_montaez_pytorch_model, create_dummy_pytorch_linear, ExConvNet
+from lrp import create_montaez_pytorch_model, create_dummy_pytorch_linear, ExConv1d
 import torch.utils.data as data_utils
 from torch.utils.data.sampler import SubsetRandomSampler
 from combi import chi_square

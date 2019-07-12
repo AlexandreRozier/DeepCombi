@@ -2,7 +2,8 @@ import math
 
 import tensorflow
 import keras
-from keras.callbacks import ModelCheckpoint
+
+from keras.callbacks import ModelCheckpoint, EarlyStopping
 from keras.layers import Dense, Dropout, Conv1D, Flatten, Activation, MaxPooling1D,GlobalAveragePooling1D, AvgPool1D, BatchNormalization, GaussianNoise
 from keras.models import Sequential, load_model
 from keras.utils import to_categorical
@@ -11,6 +12,7 @@ from keras.constraints import MaxNorm, UnitNorm
 from keras.regularizers import l2, l1, l1_l2
 from keras import optimizers
 from helpers import EnforceNeg, generate_name_from_params
+keras.constraints.EnforceNeg = EnforceNeg # Absolutely crucial
 import numpy as np
 import os
 from parameters_complete import TEST_DIR, SAVED_MODELS_DIR, Cs, n_total_snps
@@ -22,108 +24,49 @@ from lrp import ExLinear, ExReLU, ExSequential, ExDropout, ExConv1d
 PREFIX = os.environ['PREFIX']
 
 
-### PYTORCH MODELS
-def create_montaez_pytorch_model(params):
+class MontaezEarlyStopping(EarlyStopping):
     
-    return ExSequential(
-        ExLinear(n_total_snps * 3, 10, bias=False),
-        ExReLU(),
-        ExDropout(p=params['dropout_rate']),
-        ExLinear(10, 10, bias=False),
-        ExReLU(),
-        ExDropout(p=params['dropout_rate']),
-        ExLinear(10, 2, bias=False),
-        ExReLU(),
-    )
-def create_dummy_conv_pytorch_model():
-    return ExSequential(
-        ExConv1d(1 , 10, 100, bias=False),
-        ExReLU(),
-        
-        ExLinear(10, 2, bias=False),
-        ExReLU(),
-    )
-
-def create_dummy_pytorch_linear():
-    return ExSequential(
-        ExLinear(n_total_snps * 3, 2, bias=False),
-        ExReLU(),
-    )
-
-
-class ExConvNet(torch.nn.Module):
+    """ Performs early stopping by monitoring reductions of val_loss by percentage
+    """
     def __init__(self, *args, **kwargs):
         super().__init__( *args, **kwargs)
-        self.conv1 = ExConv1d(1, 10, kernel_size=100, bias=False) #(10, (n_total_snps*3 - 99))
-        self.lin1 = ExLinear(((n_total_snps*3 - 99)) * self.conv1.out_channels, 2, bias=False)
-
-
-    def forward(self, x):
-        x =self.conv1(x)
-        x = F.relu(x)
-  
-        x = x.view(-1, ((n_total_snps*3 - 99)) * 10)
-        x = self.lin1(x)
-        x = F.relu(x)
-        return x
-
-    def relprop(self,A, R):
-        # Populate inputs
-        self.conv1.input = A
-        self.lin1.input = self.conv1(self.conv1.input)
-
-        # Z rule
-        self.conv1.weight.data = self.conv1.weight.data.pow(2)
-        #self.conv1.bias.data = torch.ones_like(self.conv1.bias.data)
-        self.conv1.input.data = torch.ones_like(self.conv1.input.data)
-
-        # LRP !
-        R = self.lin1.relprop(R)
-        R = R.view(-1, self.conv1.out_channels, n_total_snps*3 - 99) 
-        R = self.conv1.relprop(R)
-        return R
-
     
+    def on_epoch_end(self, epoch, logs=None):
         
+        self.min_delta = - self.best * 0.01
+        super().on_epoch_end(epoch, logs)
+    
 
-
-
-
-
-### KERAS MODELS
+from keras.metrics import categorical_accuracy
 def create_montaez_dense_model(params):
 
-        model = Sequential()
-        model.add(Flatten(input_shape=(10020, 3)))
-
-        model.add(Dense(activation='relu',
-                        units=10,
-                        kernel_constraint=EnforceNeg(),
-                        kernel_regularizer=l1_l2(l1=params['l1_reg'], l2=params['l2_reg'])
-                        ))
-
-        model.add(Dropout(params['dropout_rate']))
-        model.add(Dense(activation='relu',
-                        units=10,
-                        kernel_constraint=EnforceNeg(),
-                        kernel_regularizer=l1_l2(l1=params['l1_reg'], l2=params['l2_reg'])
-                        ))
-        model.add(Dropout(params['dropout_rate']))
-        model.add(Dense(activation='relu',
-                        units=2,
-                        kernel_constraint=EnforceNeg(),
-                        kernel_regularizer=l1_l2(l1=params['l1_reg'], l2=params['l2_reg'])
-                        ))
-
-        model.add(Activation('softmax'))
+    model = Sequential()
+    model.add(Flatten(input_shape=(10020, 3)))
     
+    model.add(Dense(activation='relu',
+                    units=10,
+                    kernel_regularizer=l1_l2(l1=params['l1_reg'], l2=params['l2_reg'])
+                    ))
 
-        model.compile(loss='categorical_crossentropy',
-                      optimizer='SGD',
-                      metrics=['accuracy', 'categorical_crossentropy'])
+    model.add(Dropout(params['dropout_rate']))
+    model.add(Dense(activation='relu',
+                    units=10,
+                    kernel_regularizer=l1_l2(l1=params['l1_reg'], l2=params['l2_reg'])
+                    ))
+    model.add(Dropout(params['dropout_rate']))
+    model.add(Dense(activation='sigmoid',
+                    units=1,
+                    kernel_regularizer=l1_l2(l1=params['l1_reg'], l2=params['l2_reg'])
+                    ))
 
-       
-        return model
+
+
+    model.compile(loss='binary_crossentropy',
+                    optimizer=params['optimizer'],
+                    metrics=['accuracy'])
+
+    
+    return model
 
 
 
@@ -136,7 +79,9 @@ def train_dummy_dense_model(features, labels, indices, params):
 
         model.add(Dense(activation='relu',
                         units=2,
-                        kernel_regularizer=keras.regularizers.l1(l=Cs)
+                        bias_constraint=EnforceNeg()  # Negative bias are crucial for LRP
+
+                        
                         ))
         model.add(Activation('softmax'))
         
@@ -145,16 +90,15 @@ def train_dummy_dense_model(features, labels, indices, params):
                       optimizer='rmsprop',
                       metrics=['accuracy'])
 
-        model.summary()
 
-        cb_chkpt = ModelCheckpoint(params['saved_model_path'], monitor='val_loss', verbose=1,
+        cb_chkpt = ModelCheckpoint(params['saved_model_path'], monitor='val_loss', verbose=0,
                                    save_best_only=True, save_weights_only=False, mode='min', period=1)
 
         # Model fitting
         history = model.fit(x=features[indices.train], y=labels[indices.train],
                             validation_data=(features[indices.test], labels[indices.test]),
                             epochs=params['epochs'],
-                            verbose=1,
+                            verbose=0,
                             callbacks=[
                                 cb_chkpt
                             ])

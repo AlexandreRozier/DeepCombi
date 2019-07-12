@@ -13,23 +13,29 @@ import matplotlib.cm as cm
 from Indices import Indices
 import h5py 
 import torch
+import time
+import copy 
 
 from sklearn import svm
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import roc_auc_score
 from sklearn.model_selection import StratifiedKFold, GridSearchCV, ParameterGrid
+
+import keras
+from keras.optimizers import SGD
 from keras.models import Sequential, load_model
 from keras.layers import Dense, Flatten, Activation
-from keras.callbacks import EarlyStopping, ReduceLROnPlateau, ModelCheckpoint
+from keras.callbacks import  ModelCheckpoint, ReduceLROnPlateau, EarlyStopping
 from keras.regularizers import l1
 from keras.wrappers.scikit_learn import KerasClassifier
+from keras import backend as K
 
 from parameters_complete import (Cs, IMG_DIR, PARAMETERS_DIR, DATA_DIR, SAVED_MODELS_DIR,
-                                 TEST_DIR, n_total_snps, seed, p_pnorm_filter, filter_window_size, pnorm_feature_scaling, p_svm, noise_snps, inform_snps, top_k, ttbr, rep, thresholds,
+                                 TEST_DIR, n_total_snps, seed, p_pnorm_filter, filter_window_size, pnorm_feature_scaling, p_svm, noise_snps, inform_snps, top_k, ttbr, thresholds,
                                  random_state, nb_of_nodes)
-from models import DataGenerator, train_dummy_dense_model, create_montaez_dense_model, create_montaez_pytorch_model, create_dummy_pytorch_linear, create_dummy_conv_pytorch_model, ExConvNet
-from helpers import EnforceNeg, generate_name_from_params, chi_square, postprocess_weights, compute_metrics, plot_pvalues, generate_syn_phenotypes, train_torch_model, evaluate_torch_model, train_keras_model
+from models import DataGenerator, train_dummy_dense_model, create_montaez_dense_model, MontaezEarlyStopping
+from helpers import EnforceNeg, generate_name_from_params, chi_square, postprocess_weights, compute_metrics, plot_pvalues, generate_syn_phenotypes, train_torch_model, evaluate_torch_model
 from combi import combi_method
 import torch.multiprocessing as mp
 from torch.utils.data.sampler import SubsetRandomSampler
@@ -37,14 +43,9 @@ from combi import classifier
 import innvestigate
 from keras.utils import to_categorical
 
-true_pvalues = np.zeros((rep, n_total_snps), dtype=bool)
-true_pvalues[:, int(noise_snps/2):int(noise_snps/2)+inform_snps] = True
-
+import tensorflow
 
 class TestDNN(object):
-
-    CONF_PATH = os.path.join(PARAMETERS_DIR, os.environ['SGE_TASK_ID'])
-
 
 
     
@@ -76,6 +77,30 @@ class TestDNN(object):
         fig.savefig(os.path.join(IMG_DIR,'dense-lrp.png'))
     
 
+    def test_train_montaez(self, fm,labels_0based, indices):
+        g = {
+                'epochs':400,
+                'batch_size':32,
+                'l1_reg': 0,
+                'l2_reg': 0,
+                'dropout_rate':0.5,
+                'optimizer':  'adam'
+        }
+
+
+        x = fm('3d')['0'][:]
+        y = labels_0based['0']
+        model = create_montaez_dense_model(g)
+        histories = model.fit(x=x[indices.train], y=y[indices.train],
+                        validation_data=(x[indices.test], y[indices.test]),
+                        epochs=g['epochs'],
+                        callbacks=[
+                            EarlyStopping(monitor='val_loss', patience=20, mode='min', verbose=1),
+                            ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=10, mode='min', verbose=1)
+                        ],
+                        verbose=1)
+
+
 
     def test_plot_dense(self,h5py_data, fm, indices, tmp_path):
         """ Compares efficiency of the combi method with several TTBR
@@ -83,7 +108,7 @@ class TestDNN(object):
         ttbrs = [20, 6, 1, 0]
         h5py_data = h5py_data['0'][:]
 
-        fig, axes = plt.subplots(len(ttbrs), sharex='col')
+        fig, axes = plt.subplots(len(ttbrs),2, sharex='col')
         fm_ = fm("3d")  
 
         
@@ -92,7 +117,7 @@ class TestDNN(object):
             labels = generate_syn_phenotypes(root_path=DATA_DIR, ttbr=ttbr)['0']
             l_cat = to_categorical((labels+1)/2)
             params = {
-            'epochs': 20,
+            'epochs': 40,
             'saved_model_path':os.path.join(tmp_path, 'dense.hdf5')
 
             }
@@ -102,80 +127,64 @@ class TestDNN(object):
             analyzer = innvestigate.analyzer.LRPZ(model_wo_sm)
             weights = analyzer.analyze(fm_['0'][:]).sum(0)
 
-            print(weights)
             top_indices_sorted = postprocess_weights(
                 weights, top_k, filter_window_size, p_svm, p_pnorm_filter)
                 
             complete_pvalues = chi_square(h5py_data, labels)
 
-            plot_pvalues(complete_pvalues, top_indices_sorted, axes[i])
-            axes[i].legend(["LRPZ, 300 subjects, dense; ttbr={}".format(ttbr)])
+            plot_pvalues(complete_pvalues, top_indices_sorted, axes[i][0])
+            axes[i][1].plot(range(n_total_snps),weights.reshape(-1,3).sum(1), label='ttbr={}'.format(ttbr))
+            axes[i][1].legend()
             fig.savefig(os.path.join(IMG_DIR,'manhattan-dense-test.png'))
     
 
     
-    def test_hp_params(self, fm, labels_0based, indices, hparams_array_path, output_path):
-        
+    def test_hp_params(self, fm, labels_0based, indices, rep, output_path):
+        fm = fm('3d')
+        datasets = [fm[str(i)][:] for i in range(rep)]
         ## PARAMETER GRID GENERATION
-        params_array_per_node = []
         params_space = {
-                'epochs':[3,5,10,20,40,80,100],
+                'epochs':[500],
                 'batch_size':[32],
-                'lr':[10e-4, 10e-5],
-                'l1_reg': np.logspace(10e-6, 10e-1, 6),
-                'l2_reg': np.logspace(10e-6, 10e-1, 6),
-                'dropout_rate':np.linspace(0.1,0.5, 3)
+                'l1_reg': np.logspace(-6, -1, 5),
+                'l2_reg': np.logspace(-6, -1, 5),
+                'dropout_rate':np.linspace(0.1,0.5, 5),
+                'optimizer': [dict(lr=rate, decay=0) for rate in [1e-5, 1e-4, 1e-3]]
         }
 
         grid = ParameterGrid(params_space)
-        n_by_node = math.ceil(sum(1.0 for _ in grid)/nb_of_nodes)
+        grid = [params for params in grid]
+        params_array_per_node = np.array_split(grid, nb_of_nodes)
 
-        i = 0
-        j = 0
-        tmp = []
-        # Watch out: if not enough params, last nodes won't have any params
-        for params in grid:
-            # Node is full
-            if j == n_by_node:
-                j = 0
-                i += 1
-                params_array_per_node.append(tmp)
-                tmp = []
-            tmp.append(params)
-            j+=1
-        # Appends incomplete array:
-        params_array_per_node.append(tmp) 
-        assert len(params_array_per_node) == nb_of_nodes
-        
-        
-        fm = fm('2d')
         
         def f(g):
+            time.sleep(0.1)
+            g['optimizer'] = SGD(**g['optimizer'])
+            with tensorflow.Session().as_default():
+                model = create_montaez_dense_model(g)
             
-            model = create_montaez_pytorch_model(g)
-            val_losses = [train_keras_model(model,
-                                    fm[str(i)][:],
-                                    labels_0based[str(i)], 
-                                    indices, 
-                                    g)[1]['val_loss'] for i in tqdm(range(rep))]
-            
-            mean_loss_per_epoch = np.mean(val_losses, axis=1)
-            best_epoch = np.argmin(mean_loss_per_epoch)
-            g.pop('epochs', None)
-            return best_epoch, mean_loss_per_epoch[best_epoch], g
+                histories = [model.fit(x=fm[indices.train], y=labels_0based[str(i)][indices.train],
+                                validation_data=(fm[indices.test], labels_0based[str(i)][indices.test]),
+                                epochs=g['epochs'],
+                                callbacks=[
+                                    MontaezEarlyStopping(monitor='val_loss', patience=20, mode='min'), 
+                                    ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=10, mode='min')
+                                ],
+                                verbose=1).history for i,fm in enumerate(datasets)]
+        
+            return [{**g, **history} for history in histories]
 
-        hparams_array = params_array_per_node[int(os.environ['SGE_TASK_ID'])]
+        hparams_array = params_array_per_node[int(os.environ['SGE_TASK_ID'])-1]
 
-        best_epoch, best_val_loss, params = np.array(Parallel(n_jobs=-1, require='sharedmem')(delayed(f)(g) for g in hparams_array)).T
-        results = pd.DataFrame(list(params))
-        results['best_val_loss'] = best_val_loss
-        results['best_epoch'] = best_epoch
+        entries = np.array(Parallel(n_jobs=-1, prefer="threads")(delayed(f)(g) for g in hparams_array)).flatten()
+        results = pd.DataFrame(list(entries))
         results.to_csv(output_path)
 
 
-    def test_tpr_fwer_dense(self, h5py_data, labels, labels_cat, fm, indices):
+    def test_tpr_fwer_dense(self, h5py_data, labels, labels_cat, fm, indices, rep, true_pvalues):
         """ Compares combi vs dense curves
         """
+
         fig, axes = plt.subplots(2)
         fig.set_size_inches(18.5, 10.5)
         ax1, ax2 = axes
@@ -204,11 +213,11 @@ class TestDNN(object):
                 'l2_reg':2.511921,
                 'lr':10e-3,
                 'dropout_rate':0.3,
-                'saved_model_path': os.path.join(SAVED_MODELS_DIR, 'dense-{}.h5py'.format(i))
+                'batch_size': 32
             }
             model = create_montaez_dense_model(params)
 
-            model, _ = train_keras_model(model, fm, labels_cat, indices, params)
+            model, _ = train_keras_model(model, fm, l_cat, indices, params)
 
             model_wo_sm = innvestigate.utils.keras.graph.model_wo_softmax(model)
 
@@ -225,6 +234,7 @@ class TestDNN(object):
 
 
         fm_2d = fm("2d")
+        fm_3d = fm("3d")
         
 
         pvalues_per_run_combi = Parallel(n_jobs=-1, require='sharedmem')(delayed(
@@ -232,7 +242,7 @@ class TestDNN(object):
         
         pvalues_per_run_dense = np.ones((rep, n_total_snps))
         for i in tqdm(range(rep)):
-            pvalues_per_run_dense[i] = dense_compute_pvalues(i,h5py_data[str(i)][:], fm_2d[str(i)][:], labels_0based[str(i)],labels[str(i)])
+            pvalues_per_run_dense[i] = dense_compute_pvalues(i,h5py_data[str(i)][:], fm_3d[str(i)][:], labels_cat[str(i)], labels[str(i)])
 
 
         res_combi = np.array(Parallel(n_jobs=-1, require='sharedmem')(delayed(compute_metrics)(
@@ -260,66 +270,48 @@ class TestDNN(object):
         ax2.legend()
         fig.savefig(os.path.join(IMG_DIR, 'tpr_fwer_dense_combi_comparison.png'), dpi=300)
 
-    def test_svm_dnn_comparison(self, fm, labels, labels_cat, indices):
+    def test_svm_dnn_comparison(self, fm, labels, labels_0based, rep, indices):
         """ Compares performance of SVM and DNN models
         """
+        rep = 100
         params = {
-                'epochs': 40,
-                'l1_reg':1.584922,
-                'l2_reg':2.511921,
-                'lr':10e-3,
-                'dropout_rate':0.3,
-                'batch_size': 32
+                'epochs': 500,
+                'l1_reg':0.1,
+                'l2_reg':0.1,
+                'lr':10e-4,
+                'dropout_rate':0.1,
+                'batch_size': 32,
+                'optimizer': dict(lr=1e-4, decay=1)
+
         }
         fm_2d = fm("2d")
         fm_3d = fm("3d")
 
-        svm_val_acc = np.zeros(rep-1)
-        dnn_val_acc = np.zeros(rep-1)
 
-        for i in tqdm(range(1, rep)):
-            X_2d = fm_2d[str(i)][:]
-            X_3d = fm_3d[str(i)][:]
-            
-            Y = labels[str(i)]
-            Y_cat = labels_cat[str(i)]
-            
+        # 1. Train dnn with optimal params
+        def fit_dnn(x, y):
+            params['optimizer'] = SGD(**params['optimizer'])
             montaez_model = create_montaez_dense_model(params)
-            # 1. Train dnn with optimal params
-            montaez_model, history = train_keras_model(montaez_model, 
-                                        X_3d, 
-                                        Y_cat, 
-                                        indices, 
-                                        params)
-            dnn_val_acc[i-1] = history['val_acc'][-1]
+            return montaez_model.fit(x=x[indices.train], y=y[indices.train],
+                            validation_data=(x[indices.test], y[indices.test]),
+                            epochs=params['epochs'],
+                            callbacks=[
+                                    MontaezEarlyStopping(monitor='val_loss', patience=20, mode='min'), 
+                                    ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=10, mode='min')
+                                ],
+                            verbose=1).history['val_acc'][-1]
+        def fit_svm(x, y):
+            svm_model = classifier.fit(x[indices.train], y[indices.train])
+            return svm_model.score(x[indices.test], y[indices.test])
+                    
+        dnn_val_acc = Parallel(n_jobs=-1)(delayed(fit_dnn)(fm_3d[str(i)][:], labels_0based[str(i)]) for i in range(1,rep))
+        svm_val_acc = Parallel(n_jobs=-1)(delayed(fit_svm)(fm_2d[str(i)][:], labels[str(i)]) for i in range(1,rep))
+
             
 
-            # 2. Train svm with optimal params
-            svm_model = classifier.fit(X_2d[indices.train], Y[indices.train])
-            svm_val_acc[i-1] = svm_model.score(X_2d[indices.test], Y[indices.test])
-            del X_2d, X_3d, Y, Y_cat
-            
             
         
         # 3. Compare average val_acc on all syn datasets
         print('SVM mean val acc:{}; DNN mean val acc:{}'.format(np.mean(svm_val_acc), np.mean(dnn_val_acc)))
 
-    # 4. If sufficient outperformance, try to plot the curve.
-
-    def test_train_cnn(self,fm, labels_0based, indices):
-        params = {
-            'epochs':40,
-            'lr':1e-4,
-            'l2_reg':2.511921,
-            'batch_size':32
-
-        }
-        model = ExConvNet()
-        fm = fm('2d')['0'][:]
-        data = torch.Tensor(fm)
-        data = data.unsqueeze(1)
-        l_0b = labels_0based['0']
-        labels_0b = torch.LongTensor(l_0b)
-
-        model, metrics = train_torch_model(model, data, labels_0b, indices, params)
-        print(metrics['val_acc'])
+  

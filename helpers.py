@@ -13,7 +13,6 @@ import keras
 import torch
 from tqdm import tqdm
 from parameters_complete import DATA_DIR, ttbr as ttbr, n_subjects, pnorm_feature_scaling, inform_snps
-from parameters_complete import rep
 from joblib import Parallel, delayed
 from torch.utils.data.sampler import SubsetRandomSampler
 import torch.utils.data as data_utils
@@ -59,7 +58,7 @@ def check_genotype_unique_allels(genotype):
                 for i in range(genotype.shape[1])]) <= 3)
 
 
-def generate_syn_genotypes(root_path=DATA_DIR, prefix="syn", n_subjects=n_subjects, n_info_snps=20, n_noise_snps=10000, quantity=rep):
+def generate_syn_genotypes(root_path=DATA_DIR, prefix="syn", n_subjects=n_subjects, n_info_snps=20, n_noise_snps=10000, quantity=1):
     """ Generate synthetic genotypes and labels by removing all minor allels with low frequency, and missing SNPs.
         First step of data preprocessing, has to be followed by string_to_featmat()
         > Checks that that each SNP in each chromosome has at most 2 unique values in the whole dataset.
@@ -110,7 +109,7 @@ def generate_syn_genotypes(root_path=DATA_DIR, prefix="syn", n_subjects=n_subjec
     return os.path.join(root_path, prefix+'_data.h5py')
 
 
-def generate_syn_phenotypes(root_path=DATA_DIR, ttbr=ttbr, prefix="syn", n_info_snps=20,  n_noise_snps=10000):
+def generate_syn_phenotypes(root_path=DATA_DIR, ttbr=ttbr, prefix="syn", n_info_snps=20, n_noise_snps=10000, quantity=1):
     """
     > Assumes that each SNP has at most 3 unique values in the whole dataset (Two allels and possibly unmapped values)
     IMPORTANT: DOES NOT LOAD FROM FILE
@@ -144,7 +143,7 @@ def generate_syn_phenotypes(root_path=DATA_DIR, ttbr=ttbr, prefix="syn", n_info_
     labels_dict = {}
     with h5py.File(os.path.join(root_path, prefix+'_data.h5py'), 'r') as h5py_file:
         
-        Parallel(n_jobs=-1, require='sharedmem')(delayed(f)(h5py_file[str(i)][:],str(i), labels_dict) for i in tqdm(range(rep)))
+        Parallel(n_jobs=-1, require='sharedmem')(delayed(f)(h5py_file[str(i)][:],str(i), labels_dict) for i in tqdm(range(quantity)))
        
     
     return labels_dict
@@ -385,12 +384,6 @@ class EnforceNeg(Constraint):
         return w
 
 
-def train_keras_model(model, data, labels, indices, g):
-    history = model.fit(x=data[indices.train], y=labels[indices.train],
-                            validation_data=(data[indices.test], labels[indices.test]),
-                            epochs=g['epochs'],
-                            verbose=0)
-    return model, history.history
 
 
 def train_torch_model(model, data, labels, indices, g):
