@@ -22,7 +22,7 @@ import matplotlib.cm as cm
 from joblib import Parallel, delayed
 from sklearn import svm
 from parameters_complete import thresholds, IMG_DIR, TEST_DIR, DATA_DIR, pnorm_feature_scaling, svm_rep, Cs, classy, n_total_snps, inform_snps, noise_snps
-from parameters_complete import svm_epsilon, filter_window_size, p_pnorm_filter, top_k, ttbr as ttbr, rep, alpha_sig
+from parameters_complete import svm_epsilon, filter_window_size, p_pnorm_filter, top_k, ttbr as ttbr, rep, alpha_sig, random_state
 
 
 
@@ -66,7 +66,7 @@ class TestCombi(object):
 
     def test_pvalues_subset_generation(self, h5py_data, labels):
         h5py_data = h5py_data['0'][:]
-        indices = np.random.randint(h5py_data.shape[1], size=top_k)
+        indices = random_state.randint(h5py_data.shape[1], size=top_k)
         pvalues = chi_square(h5py_data[:,indices,:], labels['0'])
         assert(len(pvalues) == len( indices))
         assert(min(pvalues) >= 0 and max(pvalues) <=1)

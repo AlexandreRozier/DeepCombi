@@ -17,6 +17,7 @@ IMG_DIR = os.path.join(ROOT_DIR,'img')
 TALOS_OUTPUT_DIR = os.path.join(TEST_DIR,'talos_output')
 PARAMETERS_DIR = os.path.join(TEST_DIR,'parameters')
 SAVED_MODELS_DIR = os.path.join(TEST_DIR,'exported_models')
+TB_DIR = os.path.join(TEST_DIR,'exported_models')
 
 ########
 ttbr = 6
@@ -45,8 +46,7 @@ svm_rep= 1
 svm_rep_permtest = 1
 Cs= 0.0022  
 
-seed = int(time())
-np.random.seed(seed)
+seed = 666
 random_state = np.random.RandomState(seed)
 
 use_scaling = 1

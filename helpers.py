@@ -12,7 +12,7 @@ import h5py
 import keras
 import torch
 from tqdm import tqdm
-from parameters_complete import DATA_DIR, ttbr as ttbr, n_subjects, pnorm_feature_scaling, inform_snps
+from parameters_complete import DATA_DIR, ttbr as ttbr, n_subjects, pnorm_feature_scaling, inform_snps, random_state
 from joblib import Parallel, delayed
 from torch.utils.data.sampler import SubsetRandomSampler
 import torch.utils.data as data_utils
@@ -22,7 +22,7 @@ import torch.utils.data as data_utils
 def generate_name_from_params(params):
     RUN_DIR_NAME = ""
     for key, val in params.items():
-        if key not in ['feature_matrix_path', 'y_path', 'verbose']:
+        if key not in ['feature_matrix_path', 'y_path', 'epochs','verbose', 'optimizer', 'batch_size']:
             RUN_DIR_NAME += "{}-{}__".format(key, val)
     RUN_DIR_NAME += "{}".format(os.environ['SGE_TASK_ID'])
     return RUN_DIR_NAME
@@ -134,7 +134,7 @@ def generate_syn_phenotypes(root_path=DATA_DIR, ttbr=ttbr, prefix="syn", n_info_
             [major_mask_1, major_mask_2, invalid_mask], axis=0) - 1.0  # n
         probabilities = 1 / \
             (1+np.exp(-ttbr * (nb_major_allels - np.median(nb_major_allels))))
-        random_vector = np.random.uniform(low=0.0, high=1.0, size=n_indiv)
+        random_vector = random_state.uniform(low=0.0, high=1.0, size=n_indiv)
         labels = np.where(probabilities > random_vector, 1, -1)
         assert genotype.shape[0] == labels.shape[0]
         labels_dict[key] = labels

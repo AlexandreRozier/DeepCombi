@@ -11,7 +11,7 @@ import os
 from sklearn.preprocessing import StandardScaler
 from parameters_complete import TEST_DIR, svm_epsilon, p_svm, p_pnorm_filter
 from helpers import moving_average, chi_square, string_to_featmat, postprocess_weights
-from parameters_complete import Cs, n_total_snps
+from parameters_complete import Cs, n_total_snps, random_state
 
 classifier = svm.LinearSVC(C=Cs, penalty='l2', tol=svm_epsilon, verbose=0, dual=True)
 
@@ -51,7 +51,7 @@ def permuted_combi_method(data, labels, n_permutations, alpha, *args):
     min_pvalues = np.zeros(n_permutations)
 
     for i in tqdm(range(n_permutations)):
-        permuted_labels = np.random.permutation(labels)
+        permuted_labels = random_state.permutation(labels)
         _, pvalues = combi_method(data, permuted_labels, *args)
         min_pvalue = pvalues.min()
         min_pvalues[i] = min_pvalue

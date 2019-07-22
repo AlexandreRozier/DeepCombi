@@ -18,4 +18,6 @@ qsub/
 core
 tests/tb-old-broken-syn/
 tests/talos_output
-qsub_results/
+hps_results/
+qsub_errors/
+qsub_output/

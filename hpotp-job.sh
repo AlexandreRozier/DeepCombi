@@ -1,18 +1,19 @@
 #!/bin/bash
 #$ -wd /home/hx/PythonImplementation
-#$ -o /home/hx/PythonImplementation/qsub
-#$ -e /home/hx/PythonImplementation/qsub
+#$ -o /home/hx/PythonImplementation/qsub_output/
+#$ -e /home/hx/PythonImplementation/qsub_errors/
 #$ -l cuda=1
 #$ -t 1-31
 
 source ~/.bashrc
-echo "bash executed"
+echo "Bootstraping..."
 
-output_path="$PWD/qsub_results/$1/$SGE_TASK_ID.csv"
-mkdir $PWD/qsub_results/$1
+output_path="$PWD/hps_results/$1/"
+
+mkdir $PWD/hps_results/$1
 
 # Call function that write results sth
-ROOT_DIR=$PWD python -m pytest -s tests/test_dnn.py::TestDNN::test_hp_params --output_path $output_path --rep $2
+ROOT_DIR=$PWD python -m pytest -s tests/test_cnn.py::TestCNN::test_hp_params --output_path $output_path --rep $2
 
 
-echo "tests ran"
+echo "Over."

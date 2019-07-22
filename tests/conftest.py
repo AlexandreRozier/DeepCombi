@@ -1,7 +1,7 @@
 from keras.utils import to_categorical
-from parameters_complete import DATA_DIR, ttbr as ttbr, seed, random_state ,n_subjects, n_total_snps, noise_snps, inform_snps      
+from parameters_complete import DATA_DIR, ttbr as default_ttbr, seed, random_state ,n_subjects, n_total_snps, noise_snps, inform_snps      , random_state
 from helpers import string_to_featmat, generate_syn_phenotypes
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, StratifiedShuffleSplit
 import numpy as np
 import os
 import math
@@ -20,13 +20,13 @@ VAL_PERCENTAGE = 1 - TRAIN_PERCENTAGE - TEST_PERCENTAGE
 
 
 features_path = os.path.join(DATA_DIR, 'syn_data.h5py')
-labels_path = os.path.join(DATA_DIR, 'syn_ttbr_{}_labels.h5py'.format(ttbr))
 
 # Fancy command-line options
 def pytest_addoption(parser):
-    parser.addoption("--output_path", action="store", default="???")
+    parser.addoption("--output_path", action="store", default="/tmp")
     parser.addoption("--hparams_array_path", action="store", default="???")
     parser.addoption("--rep", action="store", default="???")
+    parser.addoption("--ttbr", action="store", default=default_ttbr)
 
 
 @pytest.fixture
@@ -36,6 +36,10 @@ def output_path(request):
 @pytest.fixture(scope='function')
 def rep(request):
     return int(request.config.getoption("--rep"))
+
+@pytest.fixture(scope='function')
+def ttbr(request):
+    return int(request.config.getoption("--ttbr"))
 
 @pytest.fixture(scope='function')
 def true_pvalues(rep):
@@ -55,7 +59,7 @@ def fm(h5py_data):
     return fm_
 
 @pytest.fixture(scope='function')
-def labels(rep):
+def labels(rep, ttbr):
     return generate_syn_phenotypes(ttbr=ttbr,
             root_path=DATA_DIR, n_info_snps=inform_snps, n_noise_snps=noise_snps,quantity=rep)
      
@@ -74,18 +78,20 @@ def labels_0based(labels):
     return labels_0based
 
 
-@pytest.fixture(scope="module")
-def indices():
-    indices_ = np.arange(n_subjects)
-    np.random.shuffle(indices_)
-    train_indices = indices_[:math.floor(n_subjects*TRAIN_PERCENTAGE)]
-    test_indices = indices_[math.floor(
-        n_subjects*TRAIN_PERCENTAGE):math.floor(n_subjects*(TRAIN_PERCENTAGE + TEST_PERCENTAGE))]
-    val_indices = indices_[math.floor(n_subjects*(TRAIN_PERCENTAGE + TEST_PERCENTAGE)):]
-    assert(len(np.intersect1d(train_indices,test_indices))==0)
-    assert(len(np.intersect1d(train_indices,val_indices))==0)
-    print('Dataset sizes: Train: {}; Test: {}; Validation: {}'.format(len(train_indices),len(test_indices), len(val_indices)))
-    return Indices(train_indices, test_indices, val_indices)
+@pytest.fixture(scope="function")
+def indices(labels_0based):
+    """ Gets stratified indices. WARNING not usable with a val set
+    """
+    assert VAL_PERCENTAGE <=0.00001
+    indices_ = {}
+    splitter =  StratifiedShuffleSplit(n_splits=1, test_size = TEST_PERCENTAGE, random_state=random_state)
+    for key, labels in labels_0based.items():
+
+        train_indices, test_indices = next(splitter.split(np.zeros(n_subjects), labels))
+        indices_[key] = Indices(train_indices, test_indices, None)
+    
+    print('Dataset sizes: Train: {}; Test: {}; Validation: ERROR'.format(len(train_indices),len(test_indices)))
+    return indices_
 
 
 

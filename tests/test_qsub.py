@@ -17,7 +17,7 @@ from sklearn.model_selection import train_test_split, KFold
 from parameters_complete import (Cs, classy, filter_window_size,
                                  p_pnorm_filter, pnorm_feature_scaling,
                                  svm_rep, TEST_DIR, TALOS_OUTPUT_DIR, DATA_DIR, PARAMETERS_DIR)
-from models import create_conv_model, create_dense_model
+from models import  create_dense_model
 
 class TestQsub(object):
     
