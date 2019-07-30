@@ -12,11 +12,10 @@ import h5py
 import keras
 import torch
 from tqdm import tqdm
-from parameters_complete import DATA_DIR, ttbr as ttbr, n_subjects, pnorm_feature_scaling, inform_snps, random_state
+from parameters_complete import DATA_DIR, ttbr as ttbr, n_subjects, pnorm_feature_scaling, inform_snps, random_state, seed
 from joblib import Parallel, delayed
 from torch.utils.data.sampler import SubsetRandomSampler
 import torch.utils.data as data_utils
-
 
 
 def generate_name_from_params(params):
@@ -120,8 +119,8 @@ def generate_syn_phenotypes(root_path=DATA_DIR, ttbr=ttbr, prefix="syn", n_info_
     # Generate Labels from UNIQUE SNP at position 9
     info_snp_idx = int(n_noise_snps/2) + int(n_info_snps/2)
 
-
-    def f(genotype, key, labels_dict):
+    labels_dict = {}
+    def f(genotype, key):
         n_indiv = genotype.shape[0]
         info_snp = genotype[:,  info_snp_idx]  # (n,2)
         major_allel = np.max(info_snp)
@@ -134,16 +133,16 @@ def generate_syn_phenotypes(root_path=DATA_DIR, ttbr=ttbr, prefix="syn", n_info_
             [major_mask_1, major_mask_2, invalid_mask], axis=0) - 1.0  # n
         probabilities = 1 / \
             (1+np.exp(-ttbr * (nb_major_allels - np.median(nb_major_allels))))
-        random_vector = random_state.uniform(low=0.0, high=1.0, size=n_indiv)
+        random_vector = np.random.RandomState(seed).uniform(low=0.0, high=1.0, size=n_indiv)
         labels = np.where(probabilities > random_vector, 1, -1)
         assert genotype.shape[0] == labels.shape[0]
-        labels_dict[key] = labels
+        labels_dict[key] = labels   
         del genotype
 
-    labels_dict = {}
+
     with h5py.File(os.path.join(root_path, prefix+'_data.h5py'), 'r') as h5py_file:
         
-        Parallel(n_jobs=-1, require='sharedmem')(delayed(f)(h5py_file[str(i)][:],str(i), labels_dict) for i in tqdm(range(quantity)))
+        Parallel(n_jobs=-1, require='sharedmem')(delayed(f)(h5py_file[str(i)][:],str(i)) for i in tqdm(range(quantity)))
        
     
     return labels_dict
@@ -351,14 +350,15 @@ def plot_pvalues(complete_pvalues, top_indices_sorted, axes ):
         axes.set_xlabel('SNP position')
 
     
-def compute_metrics(pvalues,truth,rep, threshold):
+def compute_metrics(pvalues,truth, threshold):
+    n_experiments = pvalues.shape[0]
     selected_pvalues_mask = (pvalues <= threshold) # n, n_snp
 
     tp = (selected_pvalues_mask & truth).sum()
     fp = (selected_pvalues_mask & np.logical_not(truth)).sum()
-    tpr = tp / (rep * inform_snps)
-    enfr = fp / rep # ENFR: false rejection of null hyp, that is FALSE POSITIVE
-    fwer = ((selected_pvalues_mask & np.logical_not(truth)).sum(axis=1) > 0).sum()/rep
+    tpr = tp / (n_experiments * inform_snps)
+    enfr = fp / n_experiments # ENFR: false rejection of null hyp, that is FALSE POSITIVE
+    fwer = ((selected_pvalues_mask & np.logical_not(truth)).sum(axis=1) > 0).sum()/n_experiments
     precision = (tp / (tp + fp)) if (tp + fp)!=0 else 0
 
     assert 0 <= tpr <= 1
@@ -373,7 +373,13 @@ def postprocess_weights(weights,top_k, filter_window_size, p_svm, p_pnorm_filter
     weights /= np.linalg.norm(weights, ord=2)
     weights = moving_average(weights,filter_window_size, p=p_pnorm_filter) 
     top_indices_sorted = weights.argsort()[::-1][:top_k] # Gets indices of top_k greatest elements
-    return top_indices_sorted
+    return top_indices_sorted, weights
+
+def simple_postprocess_weights(weights,top_k, filter_window_size, p_svm, p_pnorm_filter):
+    weights = abs(weights)
+    weights = weights.reshape(-1, 3)
+    weights = np.sum(weights, axis=1)
+    return weights.argsort()[::-1][:top_k], weights
 
 class EnforceNeg(Constraint):
     """Constrains the weights to be negative.
@@ -386,10 +392,12 @@ class EnforceNeg(Constraint):
 
 
 
-def train_torch_model(model, data, labels, indices, g):
-
-    criterion = torch.nn.CrossEntropyLoss(reduction='sum')
-    optimizer = torch.optim.SGD(model.parameters(), lr=g['lr'], weight_decay=g['l2_reg'])
+def train_torch_model(model, data, labels, indices, g, log_path):
+    data = torch.FloatTensor(data).cuda()
+    labels = torch.LongTensor(labels).cuda()
+    criterion = torch.nn.BCELoss()
+    optimizer = torch.optim.Adam(model.parameters(), lr=g['lr'], weight_decay=g['l2_reg'])
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=g['patience'], factor=g['factor'], verbose=True)
 
     train_sampler = SubsetRandomSampler(indices.train)
     validation_sampler = SubsetRandomSampler(indices.test)
@@ -397,46 +405,59 @@ def train_torch_model(model, data, labels, indices, g):
     train_loader = torch.utils.data.DataLoader(dataset, batch_size=g['batch_size'], sampler=train_sampler)
     validation_loader = torch.utils.data.DataLoader(dataset,batch_size=g['batch_size'], sampler=validation_sampler)
     
-    running_train_loss = np.zeros(g['epochs'])
-    running_train_acc = np.zeros(g['epochs'])
-    running_val_loss = np.zeros(g['epochs'])
-    running_val_acc = np.zeros(g['epochs'])
+   
     
     for epoch in range(g['epochs']):
         # TRAIN
         model.train()
         correct = 0
         total = 0
+        running_train_loss = 0
         for batch, y in train_loader:
-
+            # L1 loss
+            l1_loss = None
+            for param in model.parameters():
+                if l1_loss is None: 
+                    l1_loss = param.norm(p=1)
+                else: 
+                    l1_loss = l1_loss + param.norm(p=1)
+            # Forward pass
+            loss = criterion(model(batch), y.float())
+            loss = loss + g['l1_reg'] * l1_loss.float()
+            running_train_loss += loss.item()
+            
+            # Backward pass
             optimizer.zero_grad()
-            loss = criterion(model(batch), y)
-            running_train_loss[epoch] += loss.item()
             loss.backward()
-            optimizer.step()
+            scheduler.step(epoch)
             _, predicted = torch.max(model(batch).data, 1)
             total += y.size(0)
             correct += (predicted == y).sum().item()
-        running_train_acc[epoch] = 100 * correct / total
+        running_train_acc = 100 * correct / total
 
         # EVAL
         model.eval() 
         correct = 0
         total = 0
+        running_val_loss = 0
         for batch, y in validation_loader:
             # Loss
             outputs = model(batch) # N * 2
-            running_val_loss[epoch] += criterion(outputs, y).item()
+            running_val_loss += criterion(outputs, y.float()).item()
             # Val acc
             _, predicted = torch.max(outputs.data, 1)
             total += y.size(0)
             correct += (predicted == y).sum().item()
-        running_val_acc[epoch] = 100 * correct / total
-    model.train()
-    return model, dict(val_loss=running_val_loss, 
-                       val_acc=running_val_acc,
-                       train_loss=running_train_loss,
-                       train_acc=running_train_acc)
+        running_val_acc = 100 * correct / total
+
+        # TB logging
+        logger = tensorflow.summary.FileWriter(log_path)
+        logger.add_summary(tensorflow.Summary(value=[tensorflow.Summary.Value(tag='loss', simple_value=running_train_loss)]), epoch)
+        logger.add_summary(tensorflow.Summary(value=[tensorflow.Summary.Value(tag='accuracy', simple_value=running_train_acc)]), epoch)
+        logger.add_summary(tensorflow.Summary(value=[tensorflow.Summary.Value(tag='val_loss', simple_value=running_val_loss)]), epoch)
+        logger.add_summary(tensorflow.Summary(value=[tensorflow.Summary.Value(tag='val_accuracy', simple_value=running_val_acc)]), epoch)
+        
+    
 
 
 def evaluate_torch_model(model, data, labels):

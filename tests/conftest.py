@@ -25,7 +25,7 @@ features_path = os.path.join(DATA_DIR, 'syn_data.h5py')
 def pytest_addoption(parser):
     parser.addoption("--output_path", action="store", default="/tmp")
     parser.addoption("--hparams_array_path", action="store", default="???")
-    parser.addoption("--rep", action="store", default="???")
+    parser.addoption("--rep", action="store", default=2)
     parser.addoption("--ttbr", action="store", default=default_ttbr)
 
 

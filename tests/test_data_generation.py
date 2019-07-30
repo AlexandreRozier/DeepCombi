@@ -55,6 +55,15 @@ class TestDataGeneration(object):
         assert(labels.shape[0] == n_subjects)
 
     
+    def test_phenotype_invariance(self, rep):
+        labels = generate_syn_phenotypes(root_path=DATA_DIR,  quantity=rep)
+        
+        labels2 = generate_syn_phenotypes(root_path=DATA_DIR,  quantity=rep)
+        
+    
+        for i in range(rep):
+            assert np.allclose(labels[str(i)], labels2[str(i)])
+
     def test_proportion_of_labels(self, rep):
         
         labels = generate_syn_phenotypes(ttbr=ttbr,

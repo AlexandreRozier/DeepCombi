@@ -1,28 +1,20 @@
-import torch.nn as nn
-import torch.nn.functional as F
-
+import torch 
 import os
 from lrp import create_montaez_pytorch_model, create_dummy_pytorch_linear, ExConv1d
 import torch.utils.data as data_utils
 from torch.utils.data.sampler import SubsetRandomSampler
 from combi import chi_square
 from helpers import postprocess_weights, plot_pvalues, train_torch_model
-from parameters_complete import top_k, filter_window_size, p_svm,p_pnorm_filter, IMG_DIR, n_total_snps, TB_DIR
+from parameters_complete import top_k, filter_window_size, p_svm,p_pnorm_filter, IMG_DIR, n_total_snps
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-from models import MontaezNet, best_params_montaez
-from helpers import train_torch_model
+
+class TestPytorch(object):
+
+
+
     
-
-
-class TestLRP(object):
-
-
-
-    def test_montaez_run(self, fm, labels_0based, indices):
-        model = MontaezNet(params=best_params_montaez).cuda()
-        train_torch_model(model, fm('2d')['0'][:], labels_0based['0'], indices['0'], best_params_montaez, os.path.join(TB_DIR,'test_m_torch'))
 
     def test_lrp_explanation(self, fm, labels_0based, indices, h5py_data, labels):
         

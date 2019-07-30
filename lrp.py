@@ -1,6 +1,89 @@
 import torch
 import numpy as np
 
+import torch.nn as nn
+import torchvision
+import torchvision.models as models
+import vggutils
+
+def DTD(x,cl,gamma=None,epsilon=None,prob=False,net='vgg16'):
+
+    mean = torch.Tensor([0.485, 0.456, 0.406]).reshape(1,-1,1,1)
+    std  = torch.Tensor([0.229, 0.224, 0.225]).reshape(1,-1,1,1)
+
+    lbound = (0-mean) / std
+    x      = (x-mean) / std
+    hbound = (1-mean) / std
+
+    model = {'vgg16':models.vgg16,'vgg16_bn1':models.vgg16_bn}[net](pretrained=True)
+
+    model.eval()
+
+    layers = list(model._modules['features']) + vggutils.toconv(list(model._modules['classifier']))
+    if prob: layers[-1] = vggutils.newlayer(layers[-1],lambda p: p[cl]-p)
+
+    X     = [x.data]+[None for l in layers]
+
+
+    # ---------------------------------------------------------
+    # Forward pass
+    # ---------------------------------------------------------
+    for i,layer in enumerate(layers): X[i+1] = layer.forward(X[i]).data
+    y = X[-1]
+
+    if prob:
+        r = np.array(y)
+        r = r*np.exp(-r)/np.exp(-r).sum(axis=1)[:,np.newaxis]
+        r = torch.FloatTensor(r)
+        r[:,cl]=0
+    else:
+        t = torch.FloatTensor((1.0*(np.arange(1000)==cl).reshape([1,1000,1,1])))
+        r = (y*t).data
+
+    # ---------------------------------------------------------
+    # Backward pass
+    # ---------------------------------------------------------
+    for i,layer in list(enumerate(layers))[::-1]:
+
+        print(i)
+
+        x = torch.tensor(X[i],requires_grad=True)
+
+        if isinstance(layer,nn.MaxPool2d):
+            layer = nn.AvgPool2d(2)
+
+        if isinstance(layer,nn.Conv2d) or isinstance(layer,nn.AvgPool2d):
+            
+            # Various prop rules according to the nature of the model
+            if i>0:
+                # Gamma rule
+                z = vggutils.newlayer(layer,lambda p: p + gamma*p.clamp(min=0)).forward(x)
+                ea = ((z.clamp(min=0)**2).mean()**.5).data
+                z = z + epsilon*ea + 1e-9
+                (z*(r/z).data).sum().backward()
+                r = (x*x.grad).data
+                r = r / r.std()
+
+            else:
+                l = torch.tensor(x.data*0+lbound,requires_grad=True)
+                h = torch.tensor(x.data*0+hbound,requires_grad=True)
+                z = layer.forward(x)-vggutils.newlayer(layer,lambda p: p.clamp(min=0)).forward(l)-vggutils.newlayer(layer,lambda p: p.clamp(max=0)).forward(h)
+                (z*(r/(z+1e-6)).data).sum().backward()
+                r = (x*x.grad+l*l.grad+h*h.grad).data
+
+    return r,y
+
+
+
+
+
+
+
+
+
+
+
+
 
 class ExSequential(torch.nn.Sequential):
     layers = None
@@ -137,4 +220,3 @@ class ExConvNet(torch.nn.Module):
         return R
 
     
-        

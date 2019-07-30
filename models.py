@@ -1,6 +1,7 @@
 from lrp import ExLinear, ExReLU, ExSequential, ExDropout, ExConv1d
 import torch.nn.functional as F
-import torch.nn
+import torch.nn as nn
+import torch 
 import h5py
 from parameters_complete import TEST_DIR, SAVED_MODELS_DIR, Cs, n_total_snps, random_state
 import os
@@ -10,7 +11,7 @@ import math
 import tensorflow
 import keras
 
-from keras.callbacks import ModelCheckpoint, EarlyStopping
+from keras.callbacks import ModelCheckpoint, EarlyStopping, ReduceLROnPlateau
 from keras.layers import Dense, Dropout, Conv1D, Flatten, Activation, AveragePooling1D, MaxPooling1D, GlobalAveragePooling1D, AvgPool1D, BatchNormalization, GaussianNoise
 from keras.models import Sequential, load_model
 from keras.utils import to_categorical
@@ -22,6 +23,7 @@ from helpers import EnforceNeg, generate_name_from_params
 keras.constraints.EnforceNeg = EnforceNeg  # Absolutely crucial
 
 PREFIX = os.environ['PREFIX']
+
 
 
 best_params_montavon = {
@@ -44,7 +46,7 @@ def create_montavon_conv_model(params):
                         kernel_regularizer=l1_l2(
                             l1=params['l1_reg'], l2=params['l2_reg']),
                         ))
-
+        
         model.add(Dropout(params['dropout_rate']))
 
         model.add(Flatten())
@@ -64,64 +66,131 @@ def create_montavon_conv_model(params):
         return model
 
 
-def create_lenet_model(params):
-        model = Sequential()
+best_convdense_params = {
+    'kernel_nb':3*35,
+    'strides': 3,
+    'kernel_size': 3, #wtf
+    'l1':1e-4,
+    'l2':1e-6,
+    'lr':0.001
+}
+def create_convdense_model(params):
+    model = Sequential()
 
-        model.add(Conv1D(activation='relu',
-                        input_shape=(30060, 1),
-                        filters=6,
-                        strides=5,
-                        kernel_size=params['kernel_window_size'],
-                        kernel_regularizer=l1_l2(
-                            l1=params['l1_reg'], 
-                            l2=params['l2_reg']
-                        ),
-                        kernel_initializer=keras.initializers.glorot_normal(),
-                        bias_constraint=EnforceNeg()
-                        ))
-            
-        model.add(AveragePooling1D(2))
-
-        model.add(Conv1D(activation='relu',
-                        filters=16,
-                        kernel_size=5,
-                        strides=1,
-                        kernel_regularizer=l1_l2(
-                            l1=params['l1_reg'], 
-                            l2=params['l2_reg']
-                        ),
-                        kernel_initializer=keras.initializers.glorot_normal(),
-                        bias_constraint=EnforceNeg()
-                        ))
-            
-        model.add(AveragePooling1D(2))
-
+    model.add(Conv1D(activation='relu',
+                    input_shape=(10020, 3),
+                    filters=params['kernel_nb'],
+                    strides=3,
+                    kernel_size=params['kernel_size'],
+                    kernel_regularizer=l1_l2(
+                        l1=params['l1_reg'], 
+                        l2=params['l2_reg']
+                    ),
+                    kernel_initializer=keras.initializers.glorot_normal(),
+                    bias_constraint=EnforceNeg()
+                    ))
         
-        model.add(Flatten())
 
-        model.add(Dense(activation='relu',
-                        units=10,
-                        kernel_regularizer=l1_l2(
-                            l1=params['l1_reg'], 
-                            l2=params['l2_reg']
-                        ),
-                        bias_constraint=EnforceNeg()))
+    model.add(Flatten())
 
-        model.add(Dense(activation='sigmoid',
-                        units=1,
-                        kernel_regularizer=l1_l2(
-                            l1=params['l1_reg'], 
-                            l2=params['l2_reg']
-                        ),
-                        bias_constraint=EnforceNeg()))
+    
+    model.add(Dense(activation='sigmoid',
+                    units=1,
+                    kernel_regularizer=l1_l2(
+                        l1=params['l1_reg'], 
+                        l2=params['l2_reg']
+                    ),
+                    bias_constraint=EnforceNeg()))
 
 
-        model.compile(loss='binary_crossentropy',
-                        optimizer=params['optimizer'],
-                        metrics=['accuracy'])
+    model.compile(loss='binary_crossentropy',
+                    optimizer=optimizers.Adam(lr=params['lr']),
+                    metrics=['accuracy'])
 
 
-        return model
+    return model
+
+def create_lenet_model(params):
+    model = Sequential()
+
+    model.add(Conv1D(activation='relu',
+                    input_shape=(30060, 1),
+                    filters=params['kernel_nb'],
+                    strides=2,
+                    kernel_size=params['kernel_size'],
+                    kernel_regularizer=l1_l2(
+                        l1=params['l1_reg'], 
+                        l2=params['l2_reg']
+                    ),
+                    kernel_initializer=keras.initializers.glorot_normal(),
+                    bias_constraint=EnforceNeg()
+                    ))
+        
+    model.add(MaxPooling1D(params['pooling_ratio']))
+
+    model.add(Conv1D(activation='relu',
+                    filters=params['kernel_nb']*2,
+                    kernel_size=params['kernel_size'],
+                    strides=2,
+                    kernel_regularizer=l1_l2(
+                        l1=params['l1_reg'], 
+                        l2=params['l2_reg']
+                    ),
+                    kernel_initializer=keras.initializers.glorot_normal(),
+                    bias_constraint=EnforceNeg()
+                    ))
+        
+    model.add(MaxPooling1D(params['pooling_ratio']))
+
+
+    model.add(Conv1D(activation='relu',
+                    filters=params['kernel_nb']*4 ,
+                    kernel_size=params['kernel_size'],
+                    strides=2,
+                    kernel_regularizer=l1_l2(
+                        l1=params['l1_reg'], 
+                        l2=params['l2_reg']
+                    ),
+                    kernel_initializer=keras.initializers.glorot_normal(),
+                    bias_constraint=EnforceNeg()
+                    ))
+        
+    model.add(MaxPooling1D(params['pooling_ratio']))
+
+
+    model.add(Conv1D(activation='relu',
+                    filters=params['kernel_nb']*8,
+                    kernel_size=params['kernel_size'],
+                    strides=2,
+                    kernel_regularizer=l1_l2(
+                        l1=params['l1_reg'], 
+                        l2=params['l2_reg']
+                    ),
+                    kernel_initializer=keras.initializers.glorot_normal(),
+                    bias_constraint=EnforceNeg()
+                    ))
+        
+    model.add(MaxPooling1D(params['pooling_ratio']))
+
+
+    model.add(Flatten())
+
+    
+    model.add(Dense(activation='softmax',
+                    units=2,
+                    kernel_regularizer=l1_l2(
+                        l1=params['l1_reg'], 
+                        l2=params['l2_reg']
+                    ),
+                    bias_constraint=EnforceNeg()))
+
+
+    model.compile(loss='categorical_crossentropy',
+                    optimizer=optimizers.Adam(lr=params['lr']),
+                    metrics=['accuracy'])
+
+
+    return model
 
 
 def create_clairvoyante_model(params):
@@ -129,7 +198,7 @@ def create_clairvoyante_model(params):
 
         model.add(Conv1D(activation='relu',
                         input_shape=(30060, 1),
-                        filters=16,
+                        filters=32,
                         strides=1,
                         kernel_size=params['kernel_window_size'],
                         kernel_regularizer=l1_l2(
@@ -140,11 +209,11 @@ def create_clairvoyante_model(params):
                         bias_constraint=EnforceNeg()
                         ))
             
-        model.add(AveragePooling1D(5))
+        model.add(AveragePooling1D(4))
 
         model.add(Conv1D(activation='relu',
-                        filters=32,
-                        kernel_size=5,
+                        filters=48,
+                        kernel_size=4,
                         strides=1,
                         kernel_regularizer=l1_l2(
                             l1=params['l1_reg'], 
@@ -154,19 +223,26 @@ def create_clairvoyante_model(params):
                         bias_constraint=EnforceNeg()
                         ))
             
-        model.add(AveragePooling1D(2))
+        model.add(AveragePooling1D(3))
 
         
         model.add(Flatten())
 
         model.add(Dense(activation='relu',
-                        units=10,
+                        units=336,
                         kernel_regularizer=l1_l2(
                             l1=params['l1_reg'], 
                             l2=params['l2_reg']
                         ),
                         bias_constraint=EnforceNeg()))
 
+        model.add(Dense(activation='sigmoid',
+                        units=84,
+                        kernel_regularizer=l1_l2(
+                            l1=params['l1_reg'], 
+                            l2=params['l2_reg']
+                        ),
+                        bias_constraint=EnforceNeg()))
         model.add(Dense(activation='sigmoid',
                         units=1,
                         kernel_regularizer=l1_l2(
@@ -234,14 +310,16 @@ def create_explanable_conv_model(params):
 
 
 best_params_montaez = {
-                'epochs': 500,
-                'l1_reg': 10e-5,
-                'l2_reg': 10e-3,
-                'dropout_rate': 0.3,
-                'batch_size': 32,
-                'optimizer': 'adam',
-                'patience':20
+    'epochs': 500,
+    'batch_size': 32,   
+    'l1_reg': 1e-4,
+    'l2_reg': 1e-6,
+    'lr' : 0.01,
+    'dropout_rate':0.3,
+    'factor':0.4,
+    'patience':100,
 }
+
 def create_montaez_dense_model(params):
 
     model=Sequential()
@@ -250,24 +328,29 @@ def create_montaez_dense_model(params):
     model.add(Dense(activation='relu',
                     units=10,
                     kernel_regularizer=l1_l2(
-                        l1=params['l1_reg'], l2=params['l2_reg'])
-                    ))
+                        l1=params['l1_reg'], l2=params['l2_reg']
+                    ),
+                    bias_constraint=None)
+            )
 
     model.add(Dropout(params['dropout_rate']))
     model.add(Dense(activation='relu',
                     units=10,
                     kernel_regularizer=l1_l2(
-                        l1=params['l1_reg'], l2=params['l2_reg'])
-                    ))
+                        l1=params['l1_reg'], l2=params['l2_reg']
+                    ),
+                    bias_constraint=None)
+            )
     model.add(Dropout(params['dropout_rate']))
     model.add(Dense(activation='sigmoid',
                     units=1,
                     kernel_regularizer=l1_l2(
-                        l1=params['l1_reg'], l2=params['l2_reg'])
-                    ))
+                        l1=params['l1_reg'], l2=params['l2_reg']),
+                    bias_constraint = None)
+            )
 
     model.compile(loss='binary_crossentropy',
-                    optimizer=params['optimizer'],
+                    optimizer=optimizers.Adam(lr=params['lr']),
                     metrics=['accuracy'])
 
 
@@ -434,15 +517,49 @@ class DataGenerator(keras.utils.Sequence):
             y=keras.utils.to_categorical(y, num_classes=2)
         return X, y
 
-class MontaezEarlyStopping(EarlyStopping):
 
-    """ Performs early stopping by monitoring reductions of val_loss by percentage
+class ConvDenseRLRonP(ReduceLROnPlateau):
+
+    """ Reduce lr after epoch ???
     """
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+    
+    def on_epoch_end(self, epoch,logs=None):
+        
+        # Reset counter if epoch < 120
+        if(epoch < 120):
+            super()._reset()
+        
+        super().on_epoch_end(epoch, logs=logs)
 
-    def on_epoch_end(self, epoch, logs=None):
 
-        self.min_delta = - self.best * 0.01
-        super().on_epoch_end(epoch, logs)
+
+
+class MontaezNet(nn.Module):
+
+    def __init__(self, params):
+        super().__init__()
+        self.dense1 = nn.Linear(3*10020, 10)
+        self.dropout1 = nn.Dropout(p=params['dropout_rate'])
+        
+        self.dense2 = nn.Linear(10, 10)
+        self.dropout2 = nn.Dropout(p=params['dropout_rate'])
+        
+        self.dense3 = nn.Linear(10, 1) 
+        self.sigmoid = nn.Sigmoid()
+
+
+    def forward(self, x):
+        x = F.relu(self.dense1(x))
+        x = self.dropout1(x)
+
+        x = F.relu(self.dense2(x))
+        x = self.dropout2(x)
+
+        x = self.sigmoid(self.dense3(x))
+
+        return x
+
+

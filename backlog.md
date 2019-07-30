@@ -129,3 +129,18 @@ Now needs to get rid of sequential and implement Net.....
 Dense montaez w/ best params has similar val_acc performance than SVM, in average!
 Montaez can reach w/ adam solver val acc of 80% ! 
 Better results when summing relevance over cases (obviously)
+
+# 22 - 26
+
+OMG with random convdense: ON 30 datasets:
+SVM:
+- avg_val_acc  0.6373563218390805
+- std0.05616327668302317
+- max 0.75
+- min 0.5
+
+CONVDENSE:
+- avg_val_acc  0.7005747140138998
+- std 0.05187716996094885
+- max 0.8166666785875957
+- min 0.600000011920929

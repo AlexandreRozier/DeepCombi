@@ -22,7 +22,7 @@ def svm_step(featmat_2d, labels, filter_window_size, top_k , p):
     print("First step: SVM train_acc: {}".format(classifier.score(featmat_2d, labels)))
     weights = classifier.coef_[0] # n_snps * 3
     
-    top_indices_sorted = postprocess_weights(weights,top_k, filter_window_size, p_svm, p_pnorm_filter)
+    top_indices_sorted, _ = postprocess_weights(weights,top_k, filter_window_size, p_svm, p_pnorm_filter)
     return top_indices_sorted
 
 def combi_method(data, fm, labels, p, filter_window_size, top_k=0):
