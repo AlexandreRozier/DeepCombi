@@ -63,7 +63,7 @@ class TestLOTR(object):
             grid = random_state.choice(list(grid), BUDGET)
 
             best_acc = 0
-            for g in grid:
+            for i,g in enumerate(grid):
                 K.clear_session()
                 model = create_montaez_dense_model_2(g)
 
@@ -73,7 +73,7 @@ class TestLOTR(object):
         
                         epochs=g['epochs'],
                         callbacks=[
-                            TensorBoard(log_dir=os.path.join(REAL_DATA_DIR,'tb','chrom{}'.format(chrom)),
+                            TensorBoard(log_dir=os.path.join(REAL_DATA_DIR,'tb','chrom{}-{}'.format(chrom,i)),
                                 histogram_freq=3,
                                 write_graph=False,
                                 write_grads=True,
@@ -117,7 +117,7 @@ class TestLOTR(object):
             n_permutations = 1000
             alpha_sig = alphas[chrom]
             alpha_sig_EV = alphas_EV[chrom]
-            model = load_model(os.path.join(REAL_DATA_DIR,'models','chrom{}'.format(chrom)))
-            t_star = permuted_deepcombi_method(model, h5py_data, fm, labels, labels_cat, n_permutations, alpha_sig, pnorm_feature_scaling, filter_window_size, top_k)
-            t_star_EV = permuted_deepcombi_method(model, h5py_data, fm, labels, labels_cat, n_permutations, alpha_sig_EV, pnorm_feature_scaling, filter_window_size, top_k)
+            model = None
+            t_star = permuted_deepcombi_method(model, hp, h5py_data, fm, labels, labels_cat, n_permutations, alpha_sig, pnorm_feature_scaling, filter_window_size, top_k)
+            t_star_EV = permuted_deepcombi_method(model,hp, h5py_data, fm, labels, labels_cat, n_permutations, alpha_sig_EV, pnorm_feature_scaling, filter_window_size, top_k)
             
