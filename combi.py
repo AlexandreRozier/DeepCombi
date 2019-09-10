@@ -31,12 +31,13 @@ def svm_step(featmat_2d, labels, filter_window_size, top_k , p):
     return top_indices_sorted
 
 
-def dnn_step(saved_model, data, featmat_3d, labels, labels_cat, g, filter_window_size, top_k, p):
+def dnn_step(model,hp, data, featmat_3d, labels, labels_cat, g, filter_window_size, top_k, p):
     
     with tensorflow.Session().as_default():
-
+        # Super time-consuming
+        model.fit(...)
         
-        model = iutils.keras.graph.model_wo_softmax(saved_model)
+        model = iutils.keras.graph.model_wo_softmax(model)
         analyzer = innvestigate.analyzer.LRPAlpha1Beta0(model)
         weights = analyzer.analyze(featmat_3d).sum(0)
         

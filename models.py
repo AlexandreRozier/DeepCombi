@@ -11,6 +11,7 @@ import math
 import tensorflow
 import keras
 
+import keras.callbacks
 from keras.callbacks import ModelCheckpoint, EarlyStopping, ReduceLROnPlateau
 from keras.layers import Dense, Dropout, Conv1D, Flatten, Activation, AveragePooling1D, MaxPooling1D, GlobalAveragePooling1D, AvgPool1D, BatchNormalization, GaussianNoise
 from keras.models import Sequential, load_model
