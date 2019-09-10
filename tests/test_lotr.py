@@ -2,18 +2,22 @@ import os
 import pickle
 import h5py
 import numpy as np 
+import scipy.io
+
 from models import create_montaez_dense_model_2
 from keras.callbacks import TensorBoard, ReduceLROnPlateau
 from helpers import char_matrix_to_featmat
 from sklearn.model_selection import ParameterGrid
 from parameters_complete import random_state, REAL_DATA_DIR, DATA_DIR, nb_of_nodes
-from conftest import TEST_PERCENTAGE
 from keras.utils import to_categorical
 from sklearn.model_selection import StratifiedShuffleSplit
 
 from Indices import Indices
 
-import scipy.io
+
+
+TEST_PERCENTAGE = 0.20
+
 class TestLOTR(object):
 
 
