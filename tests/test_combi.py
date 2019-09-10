@@ -21,14 +21,10 @@ import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 from joblib import Parallel, delayed
 from sklearn import svm
-from parameters_complete import thresholds, IMG_DIR, TEST_DIR, DATA_DIR, pnorm_feature_scaling, svm_rep, Cs, classy, n_total_snps, inform_snps, noise_snps
-from parameters_complete import svm_epsilon, filter_window_size, p_pnorm_filter, top_k, ttbr as ttbr, rep, alpha_sig, random_state
+from parameters_complete import thresholds, IMG_DIR, TEST_DIR, DATA_DIR, pnorm_feature_scaling, Cs, classy, n_total_snps, inform_snps, noise_snps
+from parameters_complete import svm_epsilon, filter_window_size, p_pnorm_filter, top_k, ttbr as ttbr, alpha_sig, random_state
 
 
-
-
-true_pvalues = np.zeros((rep, n_total_snps), dtype=bool)
-true_pvalues[:,int(noise_snps/2):int(noise_snps/2)+inform_snps] = True
 
 class TestCombi(object):
     
@@ -134,7 +130,7 @@ class TestCombi(object):
         
 
 
-    def test_tpr_fwer_comparison(self, h5py_data):
+    def test_tpr_fwer_comparison(self, h5py_data,rep ):
         fig, axes = plt.subplots(2)
         fig.set_size_inches(18.5, 10.5)
         ax1, ax2 = axes
@@ -148,7 +144,9 @@ class TestCombi(object):
         ax2.set_xlabel('TPR')
         ttbr_list = [0.25, 1, 1.5, 2, 4, 6, 100]
         
-          
+        true_pvalues = np.zeros((rep, n_total_snps), dtype=bool)
+        true_pvalues[:,int(noise_snps/2):int(noise_snps/2)+inform_snps] = True
+
         def p_compute_pvalues(data, labels):
             indices, pvalues = combi_method(data, labels, pnorm_feature_scaling,
                                 filter_window_size, top_k)
@@ -182,7 +180,7 @@ class TestCombi(object):
         fig.savefig(os.path.join(IMG_DIR,'tpr_fwer_comparison.png'), dpi=300)
     
 
-    def test_tpr_fwer_k(self, h5py_data):
+    def test_tpr_fwer_k(self, h5py_data, rep ):
         fig, axes = plt.subplots(1)
         fig.set_size_inches(18.5, 10.5)
         ax1 = axes
@@ -192,7 +190,9 @@ class TestCombi(object):
         ax1.set_xlim(0,0.1)
      
         k_list = [10, 30, 50, 100, 500]
-        
+        true_pvalues = np.zeros((rep, n_total_snps), dtype=bool)
+        true_pvalues[:,int(noise_snps/2):int(noise_snps/2)+inform_snps] = True
+
         labels = generate_syn_phenotypes(ttbr=ttbr,root_path=DATA_DIR, n_info_snps=inform_snps, n_noise_snps=noise_snps)
 
         
@@ -266,11 +266,15 @@ class TestCombi(object):
         fig.savefig(os.path.join(IMG_DIR,'tpr_fwer_ttbr.png'), dpi=300)
     
 
-    def test_permutations(self, h5py_data, labels):
-  
+    def test_permutations(self, h5py_data, fm, labels, rep ):
+        true_pvalues = np.zeros((rep, n_total_snps), dtype=bool)
+        true_pvalues[:,int(noise_snps/2):int(noise_snps/2)+inform_snps] = True
+
         h5py_data = h5py_data['0'][:]
         labels = labels['0']
-        t_star = permuted_combi_method(h5py_data, labels, rep, alpha_sig, pnorm_feature_scaling, filter_window_size, top_k)
+        fm = fm('2d')['0'][:]
+        n_permutations = 100
+        t_star = permuted_combi_method(h5py_data, fm, labels, n_permutations, alpha_sig, pnorm_feature_scaling, filter_window_size, top_k)
         pvalues = chi_square(h5py_data, labels)
         plt.scatter(range(len(pvalues)),-np.log10(pvalues), marker='x')
         plt.axhline(y=-np.log10(t_star), color='r', linestyle='-')

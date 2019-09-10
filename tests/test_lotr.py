@@ -8,12 +8,13 @@ from models import create_montaez_dense_model_2
 from keras.callbacks import TensorBoard, ReduceLROnPlateau
 from helpers import char_matrix_to_featmat
 from sklearn.model_selection import ParameterGrid
-from parameters_complete import random_state, REAL_DATA_DIR, DATA_DIR, nb_of_nodes
+from parameters_complete import random_state, REAL_DATA_DIR, DATA_DIR, nb_of_nodes, pnorm_feature_scaling, filter_window_size, top_k
 from keras.utils import to_categorical
 from sklearn.model_selection import StratifiedShuffleSplit
 import keras.backend as K
+from keras.models import load_model
 from Indices import Indices
-
+from combi import  permuted_deepcombi_method
 
 
 TEST_PERCENTAGE = 0.20
@@ -28,8 +29,7 @@ class TestLOTR(object):
 
         for chrom in chroms_per_node[int(os.environ['SGE_TASK_ID'])-1]:
 
-            # 1. Do hyperparam search on each chromosome and find parameters with BEST VAL ACCURACY
-            
+            # 1. Do hyperparam search on each chromosome and find parameters with BEST VAL ACCURAC
 
             f = h5py.File(os.path.join(DATA_DIR,'chromo_{}.mat'.format(chrom)),'r')
             data = f.get('X')[:].T                                                                      
@@ -93,4 +93,31 @@ class TestLOTR(object):
                     model.save(os.path.join(REAL_DATA_DIR,'models','chrom{}'.format(chrom)))
                     pickle.dump(g, open(os.path.join(REAL_DATA_DIR,'hyperparams','chrom{}.p'.format(chrom)),'wb'))
 
-                
+    
+
+    def test_permutations(self):
+
+        chroms_per_node = np.array_split(range(1,23), nb_of_nodes)
+        alphas = scipy.io.loadmat(os.path.join(DATA_DIR,'alpha_j.mat'))['alpha_j'].T[0]
+        alphas_EV = scipy.io.loadmat(os.path.join(DATA_DIR,'alpha_j_EV.mat'))['alpha_j_EV'].T[0]
+
+        for chrom in chroms_per_node[int(os.environ['SGE_TASK_ID'])-1]:
+
+            # 1. Do hyperparam search on each chromosome and find parameters with BEST VAL ACCURAC
+
+            f = h5py.File(os.path.join(DATA_DIR,'chromo_{}.mat'.format(chrom)),'r')
+            data = f.get('X')[:].T                                                                      
+            h5py_data = data.reshape(data.shape[0],-1,3)                                                                                                                                                                                                                                                                                                                                                              
+            fm = char_matrix_to_featmat(h5py_data, '3d')
+
+            labels = scipy.io.loadmat(os.path.join(DATA_DIR,'labels.mat'))['y'][0]
+            labels_0based = (labels+1)/2
+            labels_cat = to_categorical(labels_0based)
+            
+            n_permutations = 1000
+            alpha_sig = alphas[chrom]
+            alpha_sig_EV = alphas_EV[chrom]
+            model = load_model(os.path.join(REAL_DATA_DIR,'models','chrom{}'.format(chrom)))
+            t_star = permuted_deepcombi_method(model, h5py_data, fm, labels, labels_cat, n_permutations, alpha_sig, pnorm_feature_scaling, filter_window_size, top_k)
+            t_star_EV = permuted_deepcombi_method(model, h5py_data, fm, labels, labels_cat, n_permutations, alpha_sig_EV, pnorm_feature_scaling, filter_window_size, top_k)
+            

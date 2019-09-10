@@ -70,7 +70,7 @@ def generate_syn_genotypes(root_path=DATA_DIR, prefix="syn", n_subjects=n_subjec
         pass
 
 
-    with h5py.File(os.path.join(DATA_DIR, 'chromo_02.mat'), 'r') as f2:
+    with h5py.File(os.path.join(DATA_DIR, 'chromo_2.mat'), 'r') as f2:
         chrom2_full = np.array(f2.get('X')).T
 
     chrom2_full = chrom2_full.reshape(chrom2_full.shape[0], -1, 3)[:, :, :2]
@@ -79,7 +79,7 @@ def generate_syn_genotypes(root_path=DATA_DIR, prefix="syn", n_subjects=n_subjec
     assert chrom2_full.shape[0] > n_subjects
     chrom2 = chrom2_full[:n_subjects]
 
-    with h5py.File(os.path.join(DATA_DIR, 'chromo_01.mat'), 'r') as f:
+    with h5py.File(os.path.join(DATA_DIR, 'chromo_1.mat'), 'r') as f:
         chrom1_full = np.array(f.get('X')).T
 
 

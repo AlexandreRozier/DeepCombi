@@ -12,6 +12,11 @@ from sklearn.preprocessing import StandardScaler
 from parameters_complete import TEST_DIR, svm_epsilon, p_svm, p_pnorm_filter
 from helpers import moving_average, chi_square, h5py_to_featmat, postprocess_weights
 from parameters_complete import Cs, n_total_snps, random_state
+from joblib import Parallel, delayed
+import tensorflow
+import innvestigate
+import innvestigate.utils as iutils
+from keras.utils import to_categorical
 
 classifier = svm.LinearSVC(C=Cs, penalty='l2', tol=svm_epsilon, verbose=0, dual=True)
 
@@ -23,6 +28,23 @@ def svm_step(featmat_2d, labels, filter_window_size, top_k , p):
     weights = classifier.coef_[0] # n_snps * 3
     
     top_indices_sorted, _ = postprocess_weights(weights,top_k, filter_window_size, p_svm, p_pnorm_filter)
+    return top_indices_sorted
+
+
+def dnn_step(saved_model, data, featmat_3d, labels, labels_cat, g, filter_window_size, top_k, p):
+    
+    with tensorflow.Session().as_default():
+
+        
+        model = iutils.keras.graph.model_wo_softmax(saved_model)
+        analyzer = innvestigate.analyzer.LRPAlpha1Beta0(model)
+        weights = analyzer.analyze(featmat_3d).sum(0)
+        
+        if np.max(abs(weights)) < 0.005:
+            raise Exception("Model failed to train")
+        
+        top_indices_sorted,_ = postprocess_weights(weights, top_k, filter_window_size, p_svm, p_pnorm_filter)
+    
     return top_indices_sorted
 
 def combi_method(data, fm, labels, p, filter_window_size, top_k=0):
@@ -45,18 +67,41 @@ def combi_method(data, fm, labels, p, filter_window_size, top_k=0):
 
     return top_indices_sorted, pvalues
   
+def deepcombi_method(model, data, fm, labels, labels_cat, p, filter_window_size, top_k=0):
+  
+    top_indices_sorted = dnn_step(model, data, fm, labels, labels_cat, filter_window_size, top_k, p)
+    
+    pvalues = chi_square(data[:,top_indices_sorted], labels)
+
+    return top_indices_sorted, pvalues
 
 
-def permuted_combi_method(data, labels, n_permutations, alpha, *args):
-    min_pvalues = np.zeros(n_permutations)
 
-    for i in tqdm(range(n_permutations)):
+def permuted_combi_method(data, fm, labels, n_permutations, alpha, *args):
+
+    def f():
         permuted_labels = random_state.permutation(labels)
-        _, pvalues = combi_method(data, permuted_labels, *args)
-        min_pvalue = pvalues.min()
-        min_pvalues[i] = min_pvalue
-    sorted_min_pvalues = np.sort(min_pvalues)
+        _, pvalues = combi_method(data, fm, permuted_labels, *args)
+        return  pvalues.min()
+    
+    min_pvalues = Parallel(n_jobs=-1, require='sharedmem')(delayed(f)() for i in tqdm(range(n_permutations)))
 
     # Alpha percentile of sorted p-values
-    t_star = sorted_min_pvalues[math.ceil(n_permutations*alpha)]
+    t_star = np.quantile(min_pvalues, alpha)
+
+    return t_star
+
+def permuted_deepcombi_method(model, data, fm, labels, labels_cat, n_permutations, alpha, *args):
+
+    def f():
+        permuted_labels = random_state.permutation(labels)
+        permuted_labels_cat = to_categorical((permuted_labels+1)/2)
+        _, pvalues = deepcombi_method(model, data, fm, permuted_labels,permuted_labels_cat, *args)
+        return  pvalues.min()
+    
+    min_pvalues = Parallel(n_jobs=-1, require='sharedmem')(delayed(f)() for i in tqdm(range(n_permutations)))
+
+    # Alpha percentile of sorted p-values
+    t_star = np.quantile(min_pvalues, alpha)
+
     return t_star
