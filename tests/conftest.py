@@ -1,6 +1,6 @@
 from keras.utils import to_categorical
 from parameters_complete import DATA_DIR, ttbr as default_ttbr, seed, random_state ,n_subjects, n_total_snps, noise_snps, inform_snps      , random_state
-from helpers import string_to_featmat, generate_syn_phenotypes
+from helpers import h5py_to_featmat, generate_syn_phenotypes
 from sklearn.model_selection import train_test_split, StratifiedShuffleSplit
 import numpy as np
 import os
@@ -55,7 +55,7 @@ def h5py_data():
 @pytest.fixture(scope="module")
 def fm(h5py_data):
     def fm_(dimension):
-        return string_to_featmat(h5py_data, embedding_type=dimension)
+        return h5py_to_featmat(h5py_data, embedding_type=dimension)
     return fm_
 
 @pytest.fixture(scope='function')

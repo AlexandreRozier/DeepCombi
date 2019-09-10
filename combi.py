@@ -10,7 +10,7 @@ import math
 import os 
 from sklearn.preprocessing import StandardScaler
 from parameters_complete import TEST_DIR, svm_epsilon, p_svm, p_pnorm_filter
-from helpers import moving_average, chi_square, string_to_featmat, postprocess_weights
+from helpers import moving_average, chi_square, h5py_to_featmat, postprocess_weights
 from parameters_complete import Cs, n_total_snps, random_state
 
 classifier = svm.LinearSVC(C=Cs, penalty='l2', tol=svm_epsilon, verbose=0, dual=True)

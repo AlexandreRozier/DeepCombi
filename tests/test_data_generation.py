@@ -3,7 +3,7 @@ import scipy
 import os
 import numpy as np
 from tqdm import tqdm
-from helpers import generate_syn_genotypes, generate_syn_phenotypes, string_to_featmat, check_genotype_unique_allels
+from helpers import generate_syn_genotypes, generate_syn_phenotypes, h5py_to_featmat, check_genotype_unique_allels
 from parameters_complete import (
     DATA_DIR, noise_snps, inform_snps, n_total_snps, n_subjects, ttbr as ttbr) 
 
@@ -74,9 +74,9 @@ class TestDataGeneration(object):
     def test_feature_map_generation(self):
         with h5py.File(os.path.join(DATA_DIR, 'syn_data.h5py'), 'r') as d:
             raw_data = d['0'][:]
-            fm2 = string_to_featmat(
+            fm2 = h5py_to_featmat(
                 raw_data, embedding_type='2d', overwrite=True)
-            fm3 = string_to_featmat(
+            fm3 = h5py_to_featmat(
                 raw_data, embedding_type='3d', overwrite=True)
             assert fm2['0'].shape[0] == n_subjects
             assert fm3['0'].shape[0] == n_subjects

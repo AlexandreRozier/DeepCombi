@@ -6,7 +6,7 @@ import torchvision
 import torchvision.models as models
 import vggutils
 
-def DTD(x,cl,gamma=None,epsilon=None,prob=False,net='vgg16'):
+def DTD(x,cl,gamma=None,epsilon=None,net='vgg16'):
 
     mean = torch.Tensor([0.485, 0.456, 0.406]).reshape(1,-1,1,1)
     std  = torch.Tensor([0.229, 0.224, 0.225]).reshape(1,-1,1,1)
@@ -20,7 +20,6 @@ def DTD(x,cl,gamma=None,epsilon=None,prob=False,net='vgg16'):
     model.eval()
 
     layers = list(model._modules['features']) + vggutils.toconv(list(model._modules['classifier']))
-    if prob: layers[-1] = vggutils.newlayer(layers[-1],lambda p: p[cl]-p)
 
     X     = [x.data]+[None for l in layers]
 
@@ -31,14 +30,8 @@ def DTD(x,cl,gamma=None,epsilon=None,prob=False,net='vgg16'):
     for i,layer in enumerate(layers): X[i+1] = layer.forward(X[i]).data
     y = X[-1]
 
-    if prob:
-        r = np.array(y)
-        r = r*np.exp(-r)/np.exp(-r).sum(axis=1)[:,np.newaxis]
-        r = torch.FloatTensor(r)
-        r[:,cl]=0
-    else:
-        t = torch.FloatTensor((1.0*(np.arange(1000)==cl).reshape([1,1000,1,1])))
-        r = (y*t).data
+    t = torch.FloatTensor((1.0*(np.arange(1000)==cl).reshape([1,1000,1,1])))
+    r = (y*t).data
 
     # ---------------------------------------------------------
     # Backward pass

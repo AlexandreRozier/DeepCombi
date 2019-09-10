@@ -1,5 +1,5 @@
 import numpy as np
-from helpers import chi_square, string_to_featmat, generate_syn_phenotypes, compute_metrics, plot_pvalues
+from helpers import chi_square, h5py_to_featmat, generate_syn_phenotypes, compute_metrics, plot_pvalues
 from combi import combi_method, permuted_combi_method
 from sklearn.model_selection import train_test_split
 import keras
@@ -38,7 +38,7 @@ class TestCombi(object):
             b_labels =  l['X'][:]
             b_data =  d['X'][:]
         classifier = svm.LinearSVC(C=Cs, penalty='l2', tol=svm_epsilon, verbose=0, dual=True)
-        bfm = string_to_featmat( b_data )
+        bfm = h5py_to_featmat( b_data )
 
         classifier.fit(bfm, b_labels)
         print("SVM score on Bettina's data: {}".format(classifier.score(bfm, b_labels)))
@@ -52,7 +52,7 @@ class TestCombi(object):
             train_accuracies = np.zeros(n)
             labels = generate_syn_phenotypes(root_path=DATA_DIR, ttbr=ttbr)
             for i, key in enumerate(list(h5py_data.keys())):
-                featmat = string_to_featmat( h5py_data[key][:] )
+                featmat = h5py_to_featmat( h5py_data[key][:] )
                 classifier.fit(featmat, labels[key])
                 train_accuracies[i] = classifier.score(featmat, labels[key])
             result[str(ttbr)] = 'mean:{}; std: {}; best:{}'.format(np.mean(train_accuracies), np.std(train_accuracies), np.max(train_accuracies))

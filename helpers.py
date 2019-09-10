@@ -148,7 +148,72 @@ def generate_syn_phenotypes(root_path=DATA_DIR, ttbr=ttbr, prefix="syn", n_info_
     return labels_dict
 
 
-def string_to_featmat(h5py_data, embedding_type='2d', overwrite=False):
+
+
+
+def char_matrix_to_featmat(data, embedding_type='2d'):
+    
+    ###  Global Parameters   ###
+    (n_subjects, num_snp3, _) = data.shape
+
+    # Computes lexicographically highest and lowest nucleotides for each position of each strand
+    lexmax_overall_per_snp = np.max(data, axis=(0, 2))
+    data[data == 48] = 255
+
+    lexmin_overall_per_snp = np.min(data, axis=(0, 2))
+    data[data == 255] = 48
+
+    # Masks showing valid or invalid indices
+    # SNPs being unchanged amongst the whole dataset, hold no information
+
+    lexmin_mask_per_snp = np.tile(lexmin_overall_per_snp, [n_subjects, 1])
+    lexmax_mask_per_snp = np.tile(lexmax_overall_per_snp, [n_subjects, 1])
+
+    invalid_bool_mask = (lexmin_mask_per_snp == lexmax_mask_per_snp)
+
+    allele1 = data[:, :, 0]
+    allele2 = data[:, :, 1]
+
+    # indices where allel1 equals the lowest value
+    allele1_lexminor_mask = (allele1 == lexmin_mask_per_snp)
+    # indices where allel1 equals the highest value
+    allele1_lexmajor_mask = (allele1 == lexmax_mask_per_snp)
+    # indices where allel2 equals the lowest value
+    allele2_lexminor_mask = (allele2 == lexmin_mask_per_snp)
+    # indices where allel2 equals the highest value
+    allele2_lexmajor_mask = (allele2 == lexmax_mask_per_snp)
+
+    f_m = np.zeros((n_subjects, num_snp3), dtype=(int, 3))
+
+    f_m[allele1_lexminor_mask & allele2_lexminor_mask] = [1, 0, 0]
+    f_m[(allele1_lexmajor_mask & allele2_lexminor_mask) |
+        (allele1_lexminor_mask & allele2_lexmajor_mask)] = [0, 1, 0]
+    f_m[allele1_lexmajor_mask & allele2_lexmajor_mask] = [0, 0, 1]
+    f_m[invalid_bool_mask] = [0, 0, 0]
+    f_m = np.reshape(f_m, (n_subjects, 3*num_snp3))
+    f_m = f_m.astype(np.double)
+
+    # Rescale feature matrix
+    f_m -= np.mean(f_m, axis=0)
+    stddev = (np.mean(np.abs(f_m)**pnorm_feature_scaling, axis=0)
+            * f_m.shape[1])**(1.0/pnorm_feature_scaling)
+    
+    # Safe division
+    f_m = np.divide(f_m, stddev, out=np.zeros_like(f_m), where=stddev!=0)
+
+    # Reshape Feature matrix
+    if(embedding_type == '2d'):
+        pass
+    elif(embedding_type == '3d'):
+        f_m = np.reshape(f_m, (n_subjects, num_snp3, 3))
+
+    return f_m
+
+
+
+
+
+def h5py_to_featmat(h5py_data, embedding_type='2d', overwrite=False):
     """ - Transforms numpy matrix of chars to a tensor of features.
         - Encode SNPs with error to [0,0,0] 
         - Does NOT change shape or perform modifications
@@ -174,60 +239,8 @@ def string_to_featmat(h5py_data, embedding_type='2d', overwrite=False):
         with h5py.File(data_path, 'r') as data_file:
             for key in tqdm(list(data_file.keys())):
                 data = data_file[key][:]
-                ###  Global Parameters   ###
-                (n_subjects, num_snp3, _) = data.shape
-
-                # Computes lexicographically highest and lowest nucleotides for each position of each strand
-                lexmax_overall_per_snp = np.max(data, axis=(0, 2))
-                data[data == 48] = 255
-
-                lexmin_overall_per_snp = np.min(data, axis=(0, 2))
-                data[data == 255] = 48
-
-                # Masks showing valid or invalid indices
-                # SNPs being unchanged amongst the whole dataset, hold no information
-
-                lexmin_mask_per_snp = np.tile(lexmin_overall_per_snp, [n_subjects, 1])
-                lexmax_mask_per_snp = np.tile(lexmax_overall_per_snp, [n_subjects, 1])
-
-                invalid_bool_mask = (lexmin_mask_per_snp == lexmax_mask_per_snp)
-
-                allele1 = data[:, :, 0]
-                allele2 = data[:, :, 1]
-
-                # indices where allel1 equals the lowest value
-                allele1_lexminor_mask = (allele1 == lexmin_mask_per_snp)
-                # indices where allel1 equals the highest value
-                allele1_lexmajor_mask = (allele1 == lexmax_mask_per_snp)
-                # indices where allel2 equals the lowest value
-                allele2_lexminor_mask = (allele2 == lexmin_mask_per_snp)
-                # indices where allel2 equals the highest value
-                allele2_lexmajor_mask = (allele2 == lexmax_mask_per_snp)
-
-                f_m = np.zeros((n_subjects, num_snp3), dtype=(int, 3))
-
-                f_m[allele1_lexminor_mask & allele2_lexminor_mask] = [1, 0, 0]
-                f_m[(allele1_lexmajor_mask & allele2_lexminor_mask) |
-                    (allele1_lexminor_mask & allele2_lexmajor_mask)] = [0, 1, 0]
-                f_m[allele1_lexmajor_mask & allele2_lexmajor_mask] = [0, 0, 1]
-                f_m[invalid_bool_mask] = [0, 0, 0]
-                f_m = np.reshape(f_m, (n_subjects, 3*num_snp3))
-                f_m = f_m.astype(np.double)
-
-                # Rescale feature matrix
-                f_m -= np.mean(f_m, axis=0)
-                stddev = (np.mean(np.abs(f_m)**pnorm_feature_scaling, axis=0)
-                        * f_m.shape[1])**(1.0/pnorm_feature_scaling)
                 
-                # Safe division
-                f_m = np.divide(f_m, stddev, out=np.zeros_like(f_m), where=stddev!=0)
-
-            
-                # Reshape Feature matrix
-                if(embedding_type == '2d'):
-                    pass
-                elif(embedding_type == '3d'):
-                    f_m = np.reshape(f_m, (n_subjects, num_snp3, 3))
+                f_m = char_matrix_to_featmat(data, embedding_type)
 
                 feature_file.create_dataset(key, data=f_m)
                 del data

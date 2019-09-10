@@ -18,7 +18,8 @@ TALOS_OUTPUT_DIR = os.path.join(TEST_DIR,'talos_output')
 PARAMETERS_DIR = os.path.join(TEST_DIR,'parameters')
 SAVED_MODELS_DIR = os.path.join(TEST_DIR,'exported_models')
 TB_DIR = os.path.join(TEST_DIR,'exported_models')
-
+NUMPY_ARRAYS = os.path.join(ROOT_DIR,'numpy_arrays')
+REAL_DATA_DIR = os.path.join(ROOT_DIR,'final_results')
 ########
 ttbr = 6
 n_subjects= 300  

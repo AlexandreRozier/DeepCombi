@@ -15,28 +15,32 @@ from keras.layers import Dense, Dropout, Flatten, Conv1D
 from keras.regularizers import l1_l2
 from keras.callbacks import EarlyStopping, TensorBoard, ReduceLROnPlateau
 from keras.optimizers import SGD
-from models import create_explanable_conv_model, create_explanable_conv_model, create_lenet_model, create_clairvoyante_model, create_montaez_dense_model, create_montaez_dense_model
+from models import create_explanable_conv_model, create_explanable_conv_model, create_lenet_model, create_clairvoyante_model, create_montaez_dense_model,create_montaez_dense_model_2, create_convdense_model
 from models import ConvDenseRLRonP
 from tqdm import tqdm
 from combi import combi_method
 from helpers import postprocess_weights, chi_square, compute_metrics, plot_pvalues, generate_name_from_params, generate_syn_phenotypes, simple_postprocess_weights
 
-from parameters_complete import random_state, nb_of_nodes, pnorm_feature_scaling, filter_window_size, p_svm, p_pnorm_filter, n_total_snps, top_k, ttbr, thresholds, IMG_DIR, DATA_DIR
+from parameters_complete import random_state, nb_of_nodes, pnorm_feature_scaling, filter_window_size, p_svm, p_pnorm_filter, n_total_snps, top_k, ttbr, thresholds, IMG_DIR, DATA_DIR, NUMPY_ARRAYS
 from joblib import Parallel, delayed
 from combi import classifier
 import innvestigate
+import innvestigate.utils as iutils
 
 
-best_params = {
-    'epochs': 500,
+
+best_params_montaez_2 = {
+    'epochs': 800,
     'batch_size': 32,   
     'l1_reg': 1e-4,
     'l2_reg': 1e-6,
     'lr' : 0.01,
-    'dropout_rate':0.3,
-    'factor':0.4,
-    'patience':100,
+    'dropout_rate':0.5,
+    'factor':0.7125,
+    'patience':50,
 }
+
+
 
 class TestCNN(object):
 
@@ -57,15 +61,15 @@ class TestCNN(object):
         
         def f(x,y,idx,key):
             with tensorflow.Session().as_default():
-                model = create_montaez_dense_model(best_params)
+                model = create_montaez_dense_model_2(best_params_montaez_2)
                 model.fit(x=x[idx.train],
                         y=y[idx.train],
                         validation_data=(x[idx.test], y[idx.test]),
-                        epochs=best_params['epochs'],
+                        epochs=best_params_montaez_2['epochs'],
                         callbacks=[
                             ReduceLROnPlateau(monitor='val_loss', 
-                                factor=best_params['factor'], 
-                                patience=best_params['patience'], 
+                                factor=best_params_montaez_2['factor'], 
+                                patience=best_params_montaez_2['patience'], 
                                 mode='min'),                            
                             TensorBoard(log_dir=os.path.join(output_path,'tb','test'+key),
                                 histogram_freq=3,
@@ -84,25 +88,28 @@ class TestCNN(object):
                                             ) for i in range(rep))
 
 
-    def test_conv_lrp(self, h5py_data, labels, fm, labels_0based, indices,rep, tmp_path):
+    def test_conv_lrp(self, h5py_data, labels, fm, labels_0based, labels_cat, indices,rep, tmp_path):
         
         fig, axes = plt.subplots(6,2*rep, squeeze=True)
         fig.set_size_inches(30, 30)
 
         def f(i, x_3d, x_2d, y, y_0b, idx):
             with tensorflow.Session().as_default():
-                model = create_montaez_dense_model(best_params)
+                model = create_montaez_dense_model_2(best_params_montaez_2)
                 model.fit(x=x_3d[idx.train],
                     y=y_0b[idx.train],
                     validation_data=(x_3d[idx.test], y_0b[idx.test]),
-                    epochs=best_params['epochs'],
+                    epochs=best_params_montaez_2['epochs'],
                     callbacks=[
+                        
                         ReduceLROnPlateau(monitor='val_loss', 
-                                    factor=best_params['factor'], 
-                                    patience=best_params['patience'], 
+                                    factor=best_params_montaez_2['factor'], 
+                                    patience=best_params_montaez_2['patience'], 
                                     mode='min'),   
                         ],
                 verbose=1)
+                model = iutils.keras.graph.model_wo_softmax(model)
+
             
 
                 classifier.fit(x_2d, y)
@@ -116,56 +123,54 @@ class TestCNN(object):
 
                 # LRPZ
                 analyzer = innvestigate.analyzer.LRPZ(model)
-                weights = analyzer.analyze(x_3d[y_0b>0.9]).sum(0)
+                weights = analyzer.analyze(x_3d).sum(0)
                 axes[0][2*i].plot(np.absolute(weights).reshape(-1,3).sum(1), label='ttbr={},lrpz'.format(ttbr))
                 
                 
                 # LRPEpsilon
                 analyzer = innvestigate.analyzer.LRPEpsilon(model, epsilon=1e-5)
-                weights = analyzer.analyze(x_3d[y_0b>0.9]).sum(0) 
+                weights = analyzer.analyze(x_3d).sum(0) 
                 axes[1][2*i].plot(np.absolute(weights).reshape(-1,3).sum(1), label='epsilon')
 
                 # LRPAlpha1Beta0
                 analyzer = innvestigate.analyzer.LRPAlpha1Beta0(model)
-                weights = analyzer.analyze(x_3d[y_0b>0.9]).sum(0)
+                weights = analyzer.analyze(x_3d).sum(0)
                 axes[2][2*i].plot(np.absolute(weights).reshape(-1,3).sum(1), label='a-1, b-0')
 
 
                 # LRPAlpha2Beta1
                 analyzer = innvestigate.analyzer.LRPAlpha2Beta1(model)
-                weights = analyzer.analyze(x_3d[y_0b>0.9]).sum(0)
+                weights = analyzer.analyze(x_3d).sum(0)
                 axes[3][2*i].plot(np.absolute(weights).reshape(-1,3).sum(1),label='a-2, b-1')
 
                 # LRPZplus
                 analyzer = innvestigate.analyzer.LRPZPlus(model)
-                weights = analyzer.analyze(x_3d[y_0b>0.9]).sum(0)
+                weights = analyzer.analyze(x_3d).sum(0)
                 axes[4][2*i].plot(np.absolute(weights).reshape(-1,3).sum(1),label='lrpzplus')
 
                 # LRPAlpha1Beta0IgnoreBias
                 analyzer = innvestigate.analyzer.LRPAlpha1Beta0IgnoreBias(model)
-                weights = analyzer.analyze(x_3d[y_0b>0.9]).sum(0)
+                weights = analyzer.analyze(x_3d).sum(0)
                 axes[5][2*i].plot(np.absolute(weights).reshape(-1,3).sum(1),label='LRPAlpha1Beta0IgnoreBias')
 
-        Parallel(n_jobs=-1, prefer="threads")(delayed(f)(i, fm("3d")[str(i)][:], fm("2d")[str(i)][:], labels[str(i)], labels_0based[str(i)], indices[str(i)]) for i in range(rep))
-            
-        fig.savefig(os.path.join(IMG_DIR, 'montaez-lrp.png'))
+        Parallel(n_jobs=-1, prefer="threads")(delayed(f)(i, fm("3d")[str(i)][:], fm("2d")[str(i)][:], labels[str(i)], labels_cat[str(i)], indices[str(i)]) for i in range(rep))
+        
+        fig.savefig(os.path.join(IMG_DIR, 'montaez-full-coca-lrp.png'))
 
 
-    def test_hp_params(self, fm, labels_0based, indices, rep, output_path):
+    def test_hp_params(self, fm, labels_0based, labels_cat, indices, rep, output_path):
         fm = fm('3d')
         
         datasets = [fm[str(i)][:] for i in range(rep)]
 
         params_space = {
             'epochs': [1000],
-            'batch_size': [32],
-            'l1_reg': np.logspace(-4, -4, 1),
-            'l2_reg': np.logspace(-6, -6, 1),
-            'lr' : np.logspace(-2, -2, 1),
-            'dropout_rate':np.linspace(0.1,0.5,3),
-            'patience':np.linspace(30,100,5),
-            'factor':np.linspace(0.1,0.5,5),
-
+            'patience': [10,30,50,100],
+            'factor':np.linspace(0.1,0.8,9),
+            'dropout_rate':np.linspace(0.1,0.5,5),
+            'l1_reg': np.logspace(-6, -2, 5),
+            'l2_reg': np.logspace(-6, -2, 5),
+            'lr' : np.logspace(-4, -2, 3),        
         }
 
         grid = ParameterGrid(params_space)
@@ -177,27 +182,26 @@ class TestCNN(object):
 
         def f(g):
 
-            time.sleep(0.1)
             name = generate_name_from_params(g)
             with tensorflow.Session().as_default():
-                model = create_montaez_dense_model(g)
+                model = create_montaez_dense_model_2(g)
 
                 histories = [model.fit(x=fm[indices[str(i)].train],
-                                        y=labels_0based[str(i)][indices[str(i)].train],
+                                        y=labels_cat[str(i)][indices[str(i)].train],
                                         validation_data=(
-                                           fm[indices[str(i)].test], labels_0based[str(i)][indices[str(i)].test]),
+                                           fm[indices[str(i)].test], labels_cat[str(i)][indices[str(i)].test]),
                                         epochs=g['epochs'],
                                         callbacks=[
-                                            ReduceLROnPlateau(monitor='val_loss', 
-                                                factor=best_params['factor'], 
-                                                patience=best_params['patience'], 
-                                                mode='min'),   
                                             TensorBoard(log_dir=os.path.join(output_path,'tb',name+str(i)),
                                                 histogram_freq=3,
                                                 write_graph=False,
                                                 write_grads=True,
-                                                write_images=False,
-                                            )
+                                                write_images=False),
+                                                ReduceLROnPlateau(monitor='val_loss', 
+                                                    factor=g['factor'], 
+                                                    patience=g['patience'], 
+                                                    mode='min'
+                                                ),
                                         ],
                                         verbose=1).history for i, fm in enumerate(datasets)]
                 mean_val_loss = np.mean([history['val_loss'][-1] for history in histories])
@@ -214,7 +218,7 @@ class TestCNN(object):
         results.to_csv(os.path.join(output_path, os.environ['SGE_TASK_ID']+'.csv'))
 
 
-    def test_svm_cnn_comparison(self, fm, labels, labels_0based, rep, indices):
+    def test_svm_cnn_comparison(self, fm, labels, labels_cat, rep, indices):
         """ Compares performance of SVM and CNN models
         """
         
@@ -222,16 +226,16 @@ class TestCNN(object):
         fm_2d = fm("2d")
 
         def fit_cnn(x, y, idx):
-            model = create_montaez_dense_model(best_params)
+            model = create_montaez_dense_model_2(best_params_montaez_2)
             return model.fit(x=x[idx.train],
                             y=y[idx.train],
                             validation_data=(
                                 x[idx.test], y[idx.test]),
-                            epochs=best_params['epochs'],
+                            epochs=best_params_montaez_2['epochs'],
                             callbacks=[
                                 ReduceLROnPlateau(monitor='val_loss', 
-                                    factor=best_params['factor'], 
-                                    patience=best_params['patience'], 
+                                    factor=best_params_montaez_2['factor'], 
+                                    patience=best_params_montaez_2['patience'], 
                                     mode='min'),   
                         ]).history['val_acc'][-1]
 
@@ -241,7 +245,7 @@ class TestCNN(object):
             
 
         cnn_val_acc = Parallel(
-            n_jobs=30)(delayed(fit_cnn)(fm_3d[str(i)][:], labels_0based[str(i)], indices[str(i)]) for i in tqdm(range(1, rep)))
+            n_jobs=30)(delayed(fit_cnn)(fm_3d[str(i)][:], labels_cat[str(i)], indices[str(i)]) for i in tqdm(range(1, rep)))
         svm_val_acc = Parallel(
             n_jobs=30)(delayed(fit_svm)(fm_2d[str(i)][:], labels[str(i)], indices[str(i)]) for i in tqdm(range(1, rep)))
 
@@ -256,12 +260,12 @@ class TestCNN(object):
 
 
 
-    def test_tpr_fwer(self, h5py_data, labels, labels_0based, fm, indices, rep, true_pvalues):
+    def test_tpr_fwer(self, h5py_data, labels, labels_0based, labels_cat, fm, indices, rep, true_pvalues):
         """ Compares combi vs dense curves
         """
 
-        window_lengths = [11, 21, 31, 35, 41, 51, 61, 101]
-
+        window_lengths = [31, 35, 41]
+    
         fig, axes = plt.subplots(2)
         fig.set_size_inches(18.5, 10.5)
         ax1, ax2 = axes
@@ -273,6 +277,9 @@ class TestCNN(object):
 
         ax2.set_ylabel('Precision')
         ax2.set_xlabel('TPR')
+
+    
+
 
         def combi_compute_pvalues(d, x, l):
 
@@ -287,22 +294,22 @@ class TestCNN(object):
             isOnlyZeros = False
             with tensorflow.Session().as_default():
 
-                model_wo_sm = create_montaez_dense_model(best_params)
+                model = create_montaez_dense_model_2(best_params_montaez_2)
 
-                model_wo_sm.fit(x=x[idx.train], y=l_0b[idx.train],
+                model.fit(x=x[idx.train], y=l_0b[idx.train],
                                 validation_data=(x[idx.test], l_0b[idx.test]),
-                                epochs=best_params['epochs'],
+                                epochs=best_params_montaez_2['epochs'],
                                 callbacks=[
                                     ReduceLROnPlateau(monitor='val_loss', 
-                                        factor=best_params['factor'], 
-                                        patience=best_params['patience'], 
+                                        factor=best_params_montaez_2['factor'], 
+                                        patience=best_params_montaez_2['patience'], 
                                         mode='min'),   
                                 ])
 
-                analyzer = innvestigate.analyzer.LRPAlpha1Beta0(model_wo_sm)
-                weights = analyzer.analyze(x[l_0b>0.9]).sum(0)
-
-                
+                model = iutils.keras.graph.model_wo_softmax(model)
+                analyzer = innvestigate.analyzer.LRPAlpha1Beta0(model)
+                weights = analyzer.analyze(x).sum(0)
+               
                 if np.max(abs(weights)) < 0.005:
                     fig, axes = plt.subplots(1)
                     isOnlyZeros = True
@@ -327,9 +334,12 @@ class TestCNN(object):
         pvalues_per_run_combi = np.array(Parallel(n_jobs=-1, require='sharedmem')(delayed(
             combi_compute_pvalues)(h5py_data[str(i)][:], fm_2d[str(i)][:], labels[str(i)]) for i in tqdm(range(rep))))
 
+        pvalues_per_run_rpvt = np.array(Parallel(n_jobs=-1, require='sharedmem')(delayed(
+            chi_square)(h5py_data[str(i)][:], labels[str(i)]) for i in tqdm(range(rep))))
+        
         # len(thresholds) * len(window_sizes) * 10020
         a = Parallel(n_jobs=-1, require='sharedmem')(delayed(
-            challenger_compute_pvalues)(h5py_data[str(i)][:], fm_3d[str(i)][:], labels_0based[str(i)], labels[str(i)], indices[str(i)]) for i in tqdm(range(rep)))
+            challenger_compute_pvalues)(h5py_data[str(i)][:], fm_3d[str(i)][:], labels_cat[str(i)], labels[str(i)], indices[str(i)]) for i in tqdm(range(rep)))
 
 
         # INNvestigate bugfix
@@ -338,18 +348,39 @@ class TestCNN(object):
 
         pvalues_per_run_combi = pvalues_per_run_combi[np.logical_not(zeros_index)]
         pvalues_per_run_dense = pvalues_per_run_dense[np.logical_not(zeros_index)]
+        pvalues_per_run_rpvt = pvalues_per_run_rpvt[np.logical_not(zeros_index)]
         true_pvalues = true_pvalues[np.logical_not(zeros_index)]
         
+        # COMBI
         res_combi = np.array(Parallel(n_jobs=-1, require='sharedmem')(delayed(compute_metrics)(
             pvalues_per_run_combi, true_pvalues, threshold) for threshold in tqdm(thresholds)))
 
         tpr_combi, _, fwer_combi, precision_combi = res_combi.T
-        
+        np.save(os.path.join(NUMPY_ARRAYS,'combi-tpr-{}'.format(ttbr)), tpr_combi)
+        np.save(os.path.join(NUMPY_ARRAYS,'combi-fwer-{}'.format(ttbr)), fwer_combi)
+        np.save(os.path.join(NUMPY_ARRAYS,'combi-precision-{}'.format(ttbr)), precision_combi)
+
         ax1.plot(fwer_combi, tpr_combi, '-o',
                 label='Combi - ttbr={}'.format(ttbr))
         ax2.plot(tpr_combi, precision_combi, '-o',
                 label='Combi  - ttbr={}'.format(ttbr))
+
+        # RPVT
+
+        res_rpvt = np.array(Parallel(n_jobs=-1, require='sharedmem')(delayed(compute_metrics)(
+            pvalues_per_run_rpvt, true_pvalues, threshold) for threshold in tqdm(thresholds)))
+
+        tpr_rpvt, _, fwer_rpvt, precision_rpvt = res_rpvt.T
+        np.save(os.path.join(NUMPY_ARRAYS,'rpvt-tpr-{}'.format(ttbr)), tpr_rpvt)
+        np.save(os.path.join(NUMPY_ARRAYS,'rpvt-fwer-{}'.format(ttbr)), fwer_rpvt)
+        np.save(os.path.join(NUMPY_ARRAYS,'rpvt-precision-{}'.format(ttbr)), precision_rpvt)
+
+        ax1.plot(fwer_rpvt, tpr_rpvt, '-o',
+                label='RPVT - ttbr={}'.format(ttbr))
+        ax2.plot(tpr_rpvt, precision_rpvt, '-o',
+                label='RPVT  - ttbr={}'.format(ttbr))
         
+        # CHALLENGER
         for i,window in enumerate(window_lengths):
             pvalues_challenger = pvalues_per_run_dense[:,i]
 
@@ -358,7 +389,9 @@ class TestCNN(object):
                 pvalues_challenger, true_pvalues, threshold) for threshold in tqdm(thresholds)))
 
             tpr_dense, _, fwer_dense, precision_dense = res_dense.T
-
+            np.save(os.path.join(NUMPY_ARRAYS,'tpr-{}-{}'.format(window,ttbr)), tpr_dense)
+            np.save(os.path.join(NUMPY_ARRAYS,'fwer-{}-{}'.format(window,ttbr)), fwer_dense)
+            np.save(os.path.join(NUMPY_ARRAYS,'precision-{}-{}'.format(window,ttbr)), precision_dense)
             assert fwer_combi.max() <= 1 and fwer_combi.min() >= 0
             ax1.plot(fwer_dense, tpr_dense, '-x',
                     label='Challenger  - k={}, ttbr={}'.format(window, ttbr))
@@ -368,9 +401,7 @@ class TestCNN(object):
 
         ax1.legend()
         ax2.legend()
-        fig.savefig(os.path.join(IMG_DIR, 'tpr_fwer_montaez_k_a1b0-bugfix.png'), dpi=300)
-        print("FOUND {} BUGS!".format(zeros_index.sum()))
-
+        fig.savefig(os.path.join(IMG_DIR, 'tpr_fwer_montaez2_k_coca_a1b0-bugfix-100-{}bugs.png'.format(zeros_index.sum())), dpi=300)
 
 
     def test_lrp_svm(self, h5py_data, fm, indices, rep, tmp_path):
@@ -388,15 +419,15 @@ class TestCNN(object):
             labels = generate_syn_phenotypes(ttbr=ttbr, quantity=rep)['4']
             l_0b = (labels+1)/2
            
-            model = create_montaez_dense_model(best_params)
+            model = create_montaez_dense_model_2(best_params_montaez_2)
             model.fit(x=x_3d[idx.train],
                     y=l_0b[idx.train],
                     validation_data=(x_3d[idx.test], l_0b[idx.test]),
-                    epochs=best_params['epochs'],
+                    epochs=best_params_montaez_2['epochs'],
                     callbacks=[
                         ReduceLROnPlateau(monitor='val_loss', 
-                                factor=best_params['factor'], 
-                                patience=best_params['patience'], 
+                                factor=best_params_montaez_2['factor'], 
+                                patience=best_params_montaez_2['patience'], 
                                 mode='min'),                   
                     ],
             )
@@ -428,4 +459,4 @@ class TestCNN(object):
             axes[i][3].set_title('Absolute SVM weight')
 
         
-            fig.savefig(os.path.join(IMG_DIR, 'manhattan-montaez-test.png'))
+            fig.savefig(os.path.join(IMG_DIR, 'manhattan-convdense-test.png'))

@@ -3,7 +3,7 @@ import math
 import os
 
 import tensorflow 
-from helpers import chi_square, string_to_featmat, EnforceNeg, generate_name_from_params
+from helpers import chi_square, h5py_to_featmat, EnforceNeg, generate_name_from_params
 import keras
 keras.constraints.EnforceNeg = EnforceNeg # Absolutely crucial
 

@@ -67,11 +67,12 @@ def create_montavon_conv_model(params):
 
 
 best_convdense_params = {
-    'kernel_nb':3*35,
+    'epochs': 0,
+    'kernel_nb':32,
     'strides': 3,
     'kernel_size': 3, #wtf
-    'l1':1e-4,
-    'l2':1e-6,
+    'l1_reg':1e-4,
+    'l2_reg':1e-6,
     'lr':0.001
 }
 def create_convdense_model(params):
@@ -80,7 +81,7 @@ def create_convdense_model(params):
     model.add(Conv1D(activation='relu',
                     input_shape=(10020, 3),
                     filters=params['kernel_nb'],
-                    strides=3,
+                    strides=params['strides'],
                     kernel_size=params['kernel_size'],
                     kernel_regularizer=l1_l2(
                         l1=params['l1_reg'], 
@@ -357,6 +358,50 @@ def create_montaez_dense_model(params):
     return model
 
 
+best_params_montaez_2 = {
+    'epochs': 800,
+    'batch_size': 32,   
+    'l1_reg': 1e-4,
+    'l2_reg': 1e-6,
+    'lr' : 0.01,
+    'dropout_rate':0.5,
+    'factor':0.7125,
+    'patience':50,
+}
+
+def create_montaez_dense_model_2(params):
+
+    model=Sequential()
+    model.add(Flatten(input_shape=(10020, 3)))
+
+    model.add(Dense(activation='relu',
+                    units=10,
+                    kernel_regularizer=l1_l2(
+                        l1=params['l1_reg'], l2=params['l2_reg']
+                    ))
+            )
+
+    model.add(Dropout(params['dropout_rate']))
+    model.add(Dense(activation='relu',
+                    units=10,
+                    kernel_regularizer=l1_l2(
+                        l1=params['l1_reg'], l2=params['l2_reg']
+                    ))
+            )
+    model.add(Dropout(params['dropout_rate']))
+    model.add(Dense(activation='softmax',
+                    units=2,
+                    kernel_regularizer=l1_l2(
+                        l1=params['l1_reg'], l2=params['l2_reg']
+                    ))
+            )
+
+    model.compile(loss='categorical_crossentropy',
+                    optimizer=optimizers.Adam(lr=params['lr']),
+                    metrics=['accuracy'])
+
+
+    return model
 
 
 
