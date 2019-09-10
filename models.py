@@ -372,7 +372,7 @@ best_params_montaez_2 = {
 def create_montaez_dense_model_2(params):
 
     model=Sequential()
-    model.add(Flatten(input_shape=(10020, 3)))
+    model.add(Flatten(input_shape=(params['n_snps'], 3)))
 
     model.add(Dense(activation='relu',
                     units=10,
