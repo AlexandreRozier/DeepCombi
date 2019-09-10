@@ -21,3 +21,5 @@ tests/talos_output
 hps_results/
 qsub_errors/
 qsub_output/
+final_results/tb/
+final_results/models/
