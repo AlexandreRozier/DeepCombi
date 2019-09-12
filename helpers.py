@@ -388,11 +388,6 @@ def postprocess_weights(weights,top_k, filter_window_size, p_svm, p_pnorm_filter
     top_indices_sorted = weights.argsort()[::-1][:top_k] # Gets indices of top_k greatest elements
     return top_indices_sorted, weights
 
-def simple_postprocess_weights(weights,top_k, filter_window_size, p_svm, p_pnorm_filter):
-    weights = abs(weights)
-    weights = weights.reshape(-1, 3)
-    weights = np.sum(weights, axis=1)
-    return weights.argsort()[::-1][:top_k], weights
 
 class EnforceNeg(Constraint):
     """Constrains the weights to be negative.

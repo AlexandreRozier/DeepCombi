@@ -9,6 +9,7 @@ from time import time
 import h5py
 from tqdm import tqdm
 import pytest
+import scipy
 
 
 from Indices import Indices
@@ -24,7 +25,6 @@ features_path = os.path.join(DATA_DIR, 'syn_data.h5py')
 # Fancy command-line options
 def pytest_addoption(parser):
     parser.addoption("--output_path", action="store", default="/tmp")
-    parser.addoption("--hparams_array_path", action="store", default="???")
     parser.addoption("--rep", action="store", default=2)
     parser.addoption("--ttbr", action="store", default=default_ttbr)
 
@@ -57,6 +57,37 @@ def fm(h5py_data):
     def fm_(dimension):
         return h5py_to_featmat(h5py_data, embedding_type=dimension)
     return fm_
+
+
+@pytest.fixture(scope="module")
+def real_h5py_data():
+    def real_data_(chrom):
+        f = h5py.File(os.path.join(DATA_DIR,'chromo_{}.mat'.format(chrom)),'r')
+        data = f.get('X')[:].T            
+        print('Dataset takes {} GB of memory'.format(data.nbytes/(1024^2)))                                                     
+        return data.reshape(data.shape[0],-1,3)     
+        
+    return real_data_
+
+@pytest.fixture(scope='module')
+def real_labels():
+    return scipy.io.loadmat(os.path.join(DATA_DIR,'labels.mat'))['y'][0]
+    
+@pytest.fixture(scope='module')
+def real_labels_0based(real_labels):
+    return (real_labels+1)/2
+
+@pytest.fixture(scope='module')
+def real_labels_cat(real_labels_0based):
+    return to_categorical(real_labels_0based)
+
+@pytest.fixture(scope='module')
+def real_idx(real_h5py_data, real_labels_0based):
+    n_subjects = len(real_labels_0based)
+    splitter =  StratifiedShuffleSplit(n_splits=1, test_size = TEST_PERCENTAGE, random_state=random_state)
+    train_indices, test_indices = next(splitter.split(np.zeros(n_subjects), real_labels_0based))
+    return Indices(train_indices, test_indices, None)     
+
 
 @pytest.fixture(scope='function')
 def labels(rep, ttbr):

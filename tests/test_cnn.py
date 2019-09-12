@@ -19,9 +19,9 @@ from models import create_explanable_conv_model, create_explanable_conv_model, c
 from models import ConvDenseRLRonP
 from tqdm import tqdm
 from combi import combi_method
-from helpers import postprocess_weights, chi_square, compute_metrics, plot_pvalues, generate_name_from_params, generate_syn_phenotypes, simple_postprocess_weights
+from helpers import postprocess_weights, chi_square, compute_metrics, plot_pvalues, generate_name_from_params, generate_syn_phenotypes
 
-from parameters_complete import random_state, nb_of_nodes, pnorm_feature_scaling, filter_window_size, p_svm, p_pnorm_filter, n_total_snps, top_k, ttbr, thresholds, IMG_DIR, DATA_DIR, NUMPY_ARRAYS
+from parameters_complete import random_state, nb_of_jobs, pnorm_feature_scaling, filter_window_size, p_svm, p_pnorm_filter, n_total_snps, top_k, ttbr, thresholds, IMG_DIR, DATA_DIR, NUMPY_ARRAYS
 from joblib import Parallel, delayed
 from combi import classifier
 import innvestigate
@@ -178,7 +178,7 @@ class TestCNN(object):
         grid = random_state.choice(list(grid), BUDGET)
         
         print("TESTING {} PARAMETERS".format(len(grid)))
-        params_array_per_node = np.array_split(grid, nb_of_nodes)
+        params_array_per_node = np.array_split(grid, nb_of_jobs)
 
         def f(g):
 

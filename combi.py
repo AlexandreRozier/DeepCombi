@@ -92,15 +92,18 @@ def permuted_combi_method(data, fm, labels, n_permutations, alpha, *args):
 
     return t_star
 
-def permuted_deepcombi_method(model, data, fm, labels, labels_cat, n_permutations, alpha, *args):
+def permuted_deepcombi_method(model, data, fm, labels, labels_cat, n_permutations, alpha, *args, mode='min'):
 
     def f():
         permuted_labels = random_state.permutation(labels)
         permuted_labels_cat = to_categorical((permuted_labels+1)/2)
         _, pvalues = deepcombi_method(model, data, fm, permuted_labels,permuted_labels_cat, *args)
-        return  pvalues.min()
+        if mode=='min':
+            return  np.array(pvalues.min())
+        elif mode=='all':
+            return np.array(pvalues)
     
-    min_pvalues = Parallel(n_jobs=-1, require='sharedmem')(delayed(f)() for i in tqdm(range(n_permutations)))
+    min_pvalues = np.array(Parallel(n_jobs=-1, require='sharedmem')(delayed(f)() for i in tqdm(range(n_permutations)))).flatten()
 
     # Alpha percentile of sorted p-values
     t_star = np.quantile(min_pvalues, alpha)
