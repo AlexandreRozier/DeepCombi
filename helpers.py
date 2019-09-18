@@ -2,14 +2,12 @@ from scipy.stats import chi2
 import math
 import numpy as np
 import sklearn.preprocessing as pp
-import tensorflow
-from keras import backend as K
+import tensorflow as tf 
 from keras.constraints import Constraint
 import os
 import io
 from tqdm import tqdm
 import h5py
-import keras
 import torch
 from tqdm import tqdm
 from parameters_complete import DATA_DIR, ttbr as ttbr, n_subjects, pnorm_feature_scaling, inform_snps, random_state, seed
@@ -284,11 +282,11 @@ def chi_square(data, labels):
 
     # Find greatest and lowest char code, SNP-wise
 
-    data[data == 48] == 255
+    data[data == 48] = 255
 
     lex_min_per_snp = data.min(axis=(0, 2))  # n_snps
 
-    data[data == 255] == 48
+    data[data == 255] = 48
 
     # Valid case masks - n * n_snp
     cases_mask = (labels == 1)
@@ -394,7 +392,7 @@ class EnforceNeg(Constraint):
     """
 
     def __call__(self, w):
-        w *= K.cast(K.greater_equal(-w, 0.), K.floatx())
+        w *= tf.backend.cast(tf.backend.greater_equal(-w, 0.), tf.backend.floatx())
         return w
 
 

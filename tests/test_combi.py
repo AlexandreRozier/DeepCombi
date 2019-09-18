@@ -22,7 +22,7 @@ import matplotlib.cm as cm
 from joblib import Parallel, delayed
 from sklearn import svm
 from parameters_complete import thresholds, IMG_DIR, TEST_DIR, DATA_DIR, pnorm_feature_scaling, Cs, classy, n_total_snps, inform_snps, noise_snps
-from parameters_complete import svm_epsilon, filter_window_size, p_pnorm_filter, top_k, ttbr as ttbr, alpha_sig, random_state
+from parameters_complete import svm_epsilon, filter_window_size, p_pnorm_filter, top_k, ttbr as ttbr, random_state, alpha_sig_toy
 
 
 
@@ -274,7 +274,7 @@ class TestCombi(object):
         labels = labels['0']
         fm = fm('2d')['0'][:]
         n_permutations = 100
-        t_star = permuted_combi_method(h5py_data, fm, labels, n_permutations, alpha_sig, pnorm_feature_scaling, filter_window_size, top_k)
+        t_star = permuted_combi_method(h5py_data, fm, labels, n_permutations, alpha_sig_toy, pnorm_feature_scaling, filter_window_size, top_k)
         pvalues = chi_square(h5py_data, labels)
         plt.scatter(range(len(pvalues)),-np.log10(pvalues), marker='x')
         plt.axhline(y=-np.log10(t_star), color='r', linestyle='-')

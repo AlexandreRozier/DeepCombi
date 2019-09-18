@@ -20,6 +20,13 @@ from keras.constraints import MaxNorm, UnitNorm
 from keras.regularizers import l2, l1, l1_l2
 from keras import optimizers
 from helpers import EnforceNeg, generate_name_from_params
+from talos.utils.gpu_utils import multi_gpu
+from tensorflow.python.client import device_lib
+
+def get_available_gpus():
+    local_device_protos = device_lib.list_local_devices()
+    return len([x.name for x in local_device_protos if x.device_type == 'GPU'])
+
 keras.constraints.EnforceNeg = EnforceNeg  # Absolutely crucial
 
 PREFIX = os.environ['PREFIX']
@@ -369,6 +376,7 @@ best_params_montaez_2 = {
     'patience':50,
 }
 
+
 def create_montaez_dense_model_2(params):
 
     model=Sequential()
@@ -395,7 +403,9 @@ def create_montaez_dense_model_2(params):
                         l1=params['l1_reg'], l2=params['l2_reg']
                     ))
             )
-
+    nb_gpus = get_available_gpus()
+    if nb_gpus >= 2:
+        model = multi_gpu(model, gpus=get_available_gpus())
     model.compile(loss='categorical_crossentropy',
                     optimizer=optimizers.Adam(lr=params['lr']),
                     metrics=['accuracy'])

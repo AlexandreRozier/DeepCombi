@@ -4,10 +4,6 @@ import os
 import time
 
 import tensorflow
-
-
-import matplotlib.cm as cm
-import matplotlib.pyplot as plt
 from sklearn.model_selection import ParameterGrid
 
 from keras import Sequential
@@ -21,12 +17,15 @@ from tqdm import tqdm
 from combi import combi_method
 from helpers import postprocess_weights, chi_square, compute_metrics, plot_pvalues, generate_name_from_params, generate_syn_phenotypes
 
-from parameters_complete import random_state, nb_of_jobs, pnorm_feature_scaling, filter_window_size, p_svm, p_pnorm_filter, n_total_snps, top_k, ttbr, thresholds, IMG_DIR, DATA_DIR, NUMPY_ARRAYS
+from parameters_complete import random_state, nb_of_jobs, pnorm_feature_scaling, filter_window_size, p_svm, p_pnorm_filter, n_total_snps, top_k, ttbr, thresholds, IMG_DIR, DATA_DIR, NUMPY_ARRAYS, alpha_sig_toy
 from joblib import Parallel, delayed
-from combi import classifier
+from combi import classifier, permuted_deepcombi_method
 import innvestigate
 import innvestigate.utils as iutils
-
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+import matplotlib.cm as cm
 
 
 best_params_montaez_2 = {
@@ -42,7 +41,7 @@ best_params_montaez_2 = {
 
 
 
-class TestCNN(object):
+class TestDeepCOMBI(object):
 
     def test_indices(self, labels_0based, indices):
         idx = indices['0']
@@ -266,19 +265,9 @@ class TestCNN(object):
 
         window_lengths = [31, 35, 41]
     
-        fig, axes = plt.subplots(2)
-        fig.set_size_inches(18.5, 10.5)
-        ax1, ax2 = axes
-
-        ax1.set_ylabel('TPR')
-        ax1.set_xlabel('FWER')
-        ax1.set_ylim(0, 0.45)
-        ax1.set_xlim(0, 0.1)
-
-        ax2.set_ylabel('Precision')
-        ax2.set_xlabel('TPR')
-
-    
+        best_params_montaez_2['epochs']=2
+        best_params_montaez_2['n_snps']=n_total_snps
+        n_permutations=2
 
 
         def combi_compute_pvalues(d, x, l):
@@ -355,15 +344,28 @@ class TestCNN(object):
         res_combi = np.array(Parallel(n_jobs=-1, require='sharedmem')(delayed(compute_metrics)(
             pvalues_per_run_combi, true_pvalues, threshold) for threshold in tqdm(thresholds)))
 
-        tpr_combi, _, fwer_combi, precision_combi = res_combi.T
-        np.save(os.path.join(NUMPY_ARRAYS,'combi-tpr-{}'.format(ttbr)), tpr_combi)
-        np.save(os.path.join(NUMPY_ARRAYS,'combi-fwer-{}'.format(ttbr)), fwer_combi)
-        np.save(os.path.join(NUMPY_ARRAYS,'combi-precision-{}'.format(ttbr)), precision_combi)
+        # T_star  - WARNING TAKES FOREVER
+        tpr_permuted = 0
+        fwer_permuted = 0
+        precision_permuted = 0
+        
+        for i in range(rep):
+            with tensorflow.Session().as_default():
 
-        ax1.plot(fwer_combi, tpr_combi, '-o',
-                label='Combi - ttbr={}'.format(ttbr))
-        ax2.plot(tpr_combi, precision_combi, '-o',
-                label='Combi  - ttbr={}'.format(ttbr))
+                model = create_montaez_dense_model_2(best_params_montaez_2)
+                t_star = permuted_deepcombi_method(model, h5py_data[str(i)][:], fm_3d[str(i)][:], labels[str(i)], labels_cat[str(i)], n_permutations, alpha_sig_toy, pnorm_feature_scaling, filter_window_size, top_k, mode='all' )
+                ground_truth = np.zeros((1,n_total_snps),dtype=bool)
+                ground_truth[:,5000:5020] = True
+                tpr, _, fwer, precision = compute_metrics(pvalues_per_run_rpvt[i], ground_truth, t_star) 
+                tpr_permuted += tpr
+                fwer_permuted += fwer
+                precision_permuted += precision
+        tpr_permuted/=rep
+        fwer_permuted/=rep
+        precision_permuted/=rep
+
+        tpr_combi, _, fwer_combi, precision_combi = res_combi.T
+
 
         # RPVT
 
@@ -371,14 +373,46 @@ class TestCNN(object):
             pvalues_per_run_rpvt, true_pvalues, threshold) for threshold in tqdm(thresholds)))
 
         tpr_rpvt, _, fwer_rpvt, precision_rpvt = res_rpvt.T
+
+        # Plot
+        fig, axes = plt.subplots(2)
+        fig.set_size_inches(18.5, 10.5)
+        ax1, ax2 = axes
+
+        ax1.set_ylim(0, 0.45)
+        ax1.set_xlim(0, 0.1)
+
+
+        ax1.set_ylabel('TPR')
+        ax1.set_xlabel('FWER')
+        ax1.plot(fwer_combi, tpr_combi, '-o',
+                label='Combi - ttbr={}'.format(ttbr))
+        ax1.plot(fwer_rpvt, tpr_rpvt, '-o',
+                label='RPVT - ttbr={}'.format(ttbr))
+        ax1.plot(fwer_permuted, tpr_permuted, '-x', 
+                label='COMBI & permuted threshold - ttbr={}'.format(ttbr))
+
+        ax2.set_ylabel('Precision')
+        ax2.set_xlabel('TPR')
+        ax2.plot(tpr_combi, precision_combi, '-o',
+                label='Combi  - ttbr={}'.format(ttbr))
+        ax2.plot(tpr_rpvt, precision_rpvt, '-o',
+                label='RPVT  - ttbr={}'.format(ttbr))
+        ax2.plot(tpr_permuted, precision_permuted, '-x', 
+                label='COMBI & permuted threshold - ttbr={}'.format(ttbr))
+
+        # Save results
+        np.save(os.path.join(NUMPY_ARRAYS,'combi-tpr-{}'.format(ttbr)), tpr_combi)
+        np.save(os.path.join(NUMPY_ARRAYS,'combi-fwer-{}'.format(ttbr)), fwer_combi)
+        np.save(os.path.join(NUMPY_ARRAYS,'combi-precision-{}'.format(ttbr)), precision_combi)
+        np.save(os.path.join(NUMPY_ARRAYS,'permuted-avg-tpr-pt{}'.format(ttbr)), tpr_permuted)
+        np.save(os.path.join(NUMPY_ARRAYS,'permuted-avg-fwer-pt{}'.format(ttbr)), fwer_permuted)
+        np.save(os.path.join(NUMPY_ARRAYS,'permuted-avg-precision-pt{}'.format(ttbr)), precision_permuted)
+
         np.save(os.path.join(NUMPY_ARRAYS,'rpvt-tpr-{}'.format(ttbr)), tpr_rpvt)
         np.save(os.path.join(NUMPY_ARRAYS,'rpvt-fwer-{}'.format(ttbr)), fwer_rpvt)
         np.save(os.path.join(NUMPY_ARRAYS,'rpvt-precision-{}'.format(ttbr)), precision_rpvt)
 
-        ax1.plot(fwer_rpvt, tpr_rpvt, '-o',
-                label='RPVT - ttbr={}'.format(ttbr))
-        ax2.plot(tpr_rpvt, precision_rpvt, '-o',
-                label='RPVT  - ttbr={}'.format(ttbr))
         
         # CHALLENGER
         for i,window in enumerate(window_lengths):
@@ -431,9 +465,10 @@ class TestCNN(object):
                                 mode='min'),                   
                     ],
             )
-
-            analyzer = innvestigate.analyzer.LRPZ(model)
-            weights = analyzer.analyze(x_3d[l_0b>0.9]).sum(0) # sum over sick ppl
+        
+            model = iutils.keras.graph.model_wo_softmax(model)
+            analyzer = innvestigate.analyzer.LRPAlpha1Beta0(model)
+            weights = analyzer.analyze(x).sum(0)
     
             top_indices_sorted, postprocessed_weights = postprocess_weights(
                 weights, top_k, filter_window_size, p_svm, p_pnorm_filter)

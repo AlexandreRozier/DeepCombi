@@ -4,8 +4,8 @@ import numpy as np
 import torch.nn as nn
 import torchvision
 import torchvision.models as models
-import vggutils
 
+"""import vggutils
 def DTD(x,cl,gamma=None,epsilon=None,net='vgg16'):
 
     mean = torch.Tensor([0.485, 0.456, 0.406]).reshape(1,-1,1,1)
@@ -68,6 +68,7 @@ def DTD(x,cl,gamma=None,epsilon=None,net='vgg16'):
 
 
 
+"""
 
 
 

@@ -1,4 +1,4 @@
-from keras.utils import to_categorical
+import tensorflow as tf
 from parameters_complete import DATA_DIR, ttbr as default_ttbr, seed, random_state ,n_subjects, n_total_snps, noise_snps, inform_snps      , random_state
 from helpers import h5py_to_featmat, generate_syn_phenotypes
 from sklearn.model_selection import train_test_split, StratifiedShuffleSplit
@@ -64,8 +64,8 @@ def real_h5py_data():
     def real_data_(chrom):
         f = h5py.File(os.path.join(DATA_DIR,'chromo_{}.mat'.format(chrom)),'r')
         data = f.get('X')[:].T            
-        print('Dataset takes {} GB of memory'.format(data.nbytes/(1024^2)))                                                     
-        return data.reshape(data.shape[0],-1,3)     
+        print('Chromosom {} takes {} GB of memory'.format(chrom, data.nbytes/(1024*1024*1024)))                                                     
+        return data.reshape(data.shape[0],-1,3)[:, :, :2] 
         
     return real_data_
 
@@ -79,7 +79,7 @@ def real_labels_0based(real_labels):
 
 @pytest.fixture(scope='module')
 def real_labels_cat(real_labels_0based):
-    return to_categorical(real_labels_0based)
+    return tf.keras.utils.to_categorical(real_labels_0based)
 
 @pytest.fixture(scope='module')
 def real_idx(real_h5py_data, real_labels_0based):
@@ -87,6 +87,14 @@ def real_idx(real_h5py_data, real_labels_0based):
     splitter =  StratifiedShuffleSplit(n_splits=1, test_size = TEST_PERCENTAGE, random_state=random_state)
     train_indices, test_indices = next(splitter.split(np.zeros(n_subjects), real_labels_0based))
     return Indices(train_indices, test_indices, None)     
+
+@pytest.fixture(scope='module')
+def alphas():
+    return scipy.io.loadmat(os.path.join(DATA_DIR,'alpha_j.mat'))['alpha_j'].T[0]
+    
+@pytest.fixture(scope='module')
+def alphas_EV():
+    return scipy.io.loadmat(os.path.join(DATA_DIR,'alpha_j_EV.mat'))['alpha_j_EV'].T[0]
 
 
 @pytest.fixture(scope='function')
@@ -98,7 +106,7 @@ def labels(rep, ttbr):
 def labels_cat(labels):
     labels_cat = {}
     for key, l in labels.items():
-        labels_cat[key] = to_categorical((l+1)/2)
+        labels_cat[key] = tf.keras.utils.to_categorical((l+1)/2)
     return labels_cat
 
 @pytest.fixture(scope='function')

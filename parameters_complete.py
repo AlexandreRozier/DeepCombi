@@ -38,7 +38,7 @@ top_k_multi = top_k*3
 top_k_roshan_2= top_k
 top_k_roshan_1= top_k_roshan_2*5
 
-alpha_sig = 0.05
+alpha_sig_toy = 0.05
 num_splits = 10
 
 # Other params
