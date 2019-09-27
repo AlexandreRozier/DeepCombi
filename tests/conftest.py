@@ -59,13 +59,11 @@ def fm(h5py_data):
     return fm_
 
 
+
 @pytest.fixture(scope="module")
 def real_h5py_data():
     def real_data_(chrom):
-        f = h5py.File(os.path.join(DATA_DIR,'chromo_{}.mat'.format(chrom)),'r')
-        data = f.get('X')[:].T            
-        print('Chromosom {} takes {} GB of memory'.format(chrom, data.nbytes/(1024*1024*1024)))                                                     
-        return data.reshape(data.shape[0],-1,3)[:, :, :2] 
+        return h5py.File(os.path.join(DATA_DIR,'chromo_{}.h5py'.format(chrom)),'r').get('X')
         
     return real_data_
 

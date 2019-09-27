@@ -1,24 +1,25 @@
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+import matplotlib.cm as cm
 import numpy as np
-from helpers import chi_square, h5py_to_featmat, generate_syn_phenotypes, compute_metrics, plot_pvalues
-from combi import combi_method, permuted_combi_method
-from sklearn.model_selection import train_test_split
-import keras
-from keras.utils import to_categorical
-from keras.models import Sequential
-from keras.layers import Dense
-from keras import callbacks
-from keras.models import load_model
+import time
 import math
 import os
 import h5py
 import copy
 import innvestigate
 import innvestigate.utils as iutils
+import keras
+from helpers import chi_square, h5py_to_featmat, generate_syn_phenotypes, compute_metrics, plot_pvalues
+from combi import combi_method, permuted_combi_method
+from sklearn.model_selection import train_test_split
+from keras.utils import to_categorical
+from keras.models import Sequential
+from keras.layers import Dense
+from keras import callbacks
+from keras.models import load_model
 from tqdm import tqdm
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
-import matplotlib.cm as cm
 from joblib import Parallel, delayed
 from sklearn import svm
 from parameters_complete import thresholds, IMG_DIR, TEST_DIR, DATA_DIR, pnorm_feature_scaling, Cs, classy, n_total_snps, inform_snps, noise_snps
@@ -222,6 +223,26 @@ class TestCombi(object):
         ax1.legend()
         fig.savefig(os.path.join(IMG_DIR,'tpr_fwer_k.png'), dpi=300)
     
+
+    def test_joblib_speedup(self, labels, fm, h5py_data):
+        h5py_data = h5py_data['0'][:]
+        labels = labels['0']
+        fm = fm('2d')['0'][:]
+        n_permutations = 1000
+
+        start_time = time.time()
+        min_pvalues = np.zeros(n_permutations)
+        for i in tqdm(range(n_permutations)):
+            permuted_labels = random_state.permutation(labels)
+            _, pvalues = combi_method(h5py_data, fm, permuted_labels, pnorm_feature_scaling, filter_window_size, top_k)
+            min_pvalues[i] = pvalues.min()
+        t_star = np.quantile(min_pvalues, alpha_sig_toy)
+        print('Sequential time: {} s'.format(time.time()-start_time))
+
+        start_time = time.time()
+        t_star = permuted_combi_method(h5py_data, fm, labels, n_permutations, alpha_sig_toy, pnorm_feature_scaling, filter_window_size, top_k)
+        print('Parallel time: {} s'.format(time.time()-start_time))
+
 
     def test_tpr_fwer_ttbr(self, h5py_data):
         

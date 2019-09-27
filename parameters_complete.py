@@ -10,6 +10,10 @@ if 'PREFIX' not in os.environ:
     os.environ['PREFIX'] = "default"
 
 
+disease_IDs =['CD',] #'BD','CAD','HT','RA','T1D','T2D']
+diseases = ['Crohns disease',]#'Bipolar disorder', 'Coronary artery disease','Hypertension','Rheumatoid arthritis','Type 1 Diabetes','Type 2 diabetes']
+     
+
 ROOT_DIR = os.environ['ROOT_DIR']
 DATA_DIR = os.path.join(ROOT_DIR,'data')
 TEST_DIR = os.path.join(ROOT_DIR,'tests')
@@ -19,7 +23,7 @@ PARAMETERS_DIR = os.path.join(TEST_DIR,'parameters')
 SAVED_MODELS_DIR = os.path.join(TEST_DIR,'exported_models')
 TB_DIR = os.path.join(TEST_DIR,'exported_models')
 NUMPY_ARRAYS = os.path.join(ROOT_DIR,'numpy_arrays')
-REAL_DATA_DIR = os.path.join(ROOT_DIR,'final_results')
+FINAL_RESULTS_DIR = os.path.join(ROOT_DIR,'final_results')
 ########
 ttbr = 6
 n_subjects= 300  
@@ -27,6 +31,7 @@ inform_snps= 20  # 15-20
 noise_snps= 10000  # 10,000, even
 n_total_snps = inform_snps + noise_snps
 top_k= 30
+real_top_k = 100
 
 ################################
 #rep= 4 #<<<<<<<<<<<<<<<<<<<<<<<<<#########################
@@ -46,6 +51,7 @@ num_splits = 10
 svm_rep= 1
 svm_rep_permtest = 1
 Cs= 0.0022  
+real_Cs= 1e-5
 
 seed = 666
 random_state = np.random.RandomState(seed)
@@ -54,6 +60,7 @@ use_scaling = 1
 use_filter = 1
 
 pnorm_feature_scaling = 2 
+real_pnorm_feature_scaling = 6
 
 filter_window_size= 35  # 35 # 1-41, odd!!!
 p_pnorm_filter = 2 # 1,2,4,100, 0.25, 0.5

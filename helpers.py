@@ -14,6 +14,11 @@ from parameters_complete import DATA_DIR, ttbr as ttbr, n_subjects, pnorm_featur
 from joblib import Parallel, delayed
 from torch.utils.data.sampler import SubsetRandomSampler
 import torch.utils.data as data_utils
+from tensorflow.python.client import device_lib
+
+def get_available_gpus():
+    local_device_protos = device_lib.list_local_devices()
+    return len([x.name for x in local_device_protos if x.device_type == 'GPU'])
 
 
 def generate_name_from_params(params):

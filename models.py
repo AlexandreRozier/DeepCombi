@@ -20,12 +20,8 @@ from keras.constraints import MaxNorm, UnitNorm
 from keras.regularizers import l2, l1, l1_l2
 from keras import optimizers
 from helpers import EnforceNeg, generate_name_from_params
-from talos.utils.gpu_utils import multi_gpu
-from tensorflow.python.client import device_lib
-
-def get_available_gpus():
-    local_device_protos = device_lib.list_local_devices()
-    return len([x.name for x in local_device_protos if x.device_type == 'GPU'])
+from talos.utils.gpu_utils import multi_gpu, parallel_gpu_jobs
+from helpers import get_available_gpus
 
 keras.constraints.EnforceNeg = EnforceNeg  # Absolutely crucial
 
@@ -374,16 +370,17 @@ best_params_montaez_2 = {
     'dropout_rate':0.5,
     'factor':0.7125,
     'patience':50,
+    'hidden_neurons':10
 }
 
 
 def create_montaez_dense_model_2(params):
 
     model=Sequential()
-    model.add(Flatten(input_shape=(params['n_snps'], 3)))
+    model.add(Flatten(input_shape=(int(params['n_snps']), 3)))
 
     model.add(Dense(activation='relu',
-                    units=10,
+                    units=int(params['hidden_neurons']),
                     kernel_regularizer=l1_l2(
                         l1=params['l1_reg'], l2=params['l2_reg']
                     ))
@@ -391,7 +388,7 @@ def create_montaez_dense_model_2(params):
 
     model.add(Dropout(params['dropout_rate']))
     model.add(Dense(activation='relu',
-                    units=10,
+                    units=int(params['hidden_neurons']),
                     kernel_regularizer=l1_l2(
                         l1=params['l1_reg'], l2=params['l2_reg']
                     ))
@@ -404,6 +401,8 @@ def create_montaez_dense_model_2(params):
                     ))
             )
     nb_gpus = get_available_gpus()
+    if nb_gpus ==1:
+        parallel_gpu_jobs(0.5)
     if nb_gpus >= 2:
         model = multi_gpu(model, gpus=get_available_gpus())
     model.compile(loss='categorical_crossentropy',

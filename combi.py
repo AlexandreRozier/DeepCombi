@@ -57,9 +57,7 @@ def combi_method(data, fm, labels, p, filter_window_size, top_k=0):
      
     RETURNS: indices, pvalues 
     """
-    print("Performing combi...")
     
-
     # SVM Step to select the most k promising SNPs
     top_indices_sorted = svm_step(fm, labels, filter_window_size, top_k, p)
     
@@ -91,6 +89,7 @@ def permuted_combi_method(data, fm, labels, n_permutations, alpha, *args):
     t_star = np.quantile(min_pvalues, alpha)
 
     return t_star
+
 
 def permuted_deepcombi_method(model, data, fm, labels, labels_cat, n_permutations, alpha, *args, mode='min'):
 

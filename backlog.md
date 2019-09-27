@@ -144,3 +144,12 @@ CONVDENSE:
 - std 0.05187716996094885
 - max 0.8166666785875957
 - min 0.600000011920929
+
+# 23 - 27 / 07
+
+TODO for report:
+
+- add related work
+- compute area under curve for tpr/fwer and other curves
+- Discussion 
+- Conclusion 
