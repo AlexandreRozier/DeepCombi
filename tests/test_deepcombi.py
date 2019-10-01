@@ -12,14 +12,14 @@ from keras.regularizers import l1_l2
 from keras.callbacks import EarlyStopping, TensorBoard, ReduceLROnPlateau
 from keras.optimizers import SGD
 from models import create_explanable_conv_model, create_explanable_conv_model, create_lenet_model, create_clairvoyante_model, create_montaez_dense_model,create_montaez_dense_model_2, create_convdense_model
-from models import ConvDenseRLRonP
+from models import ConvDenseRLRonP, best_params_montaez_2
 from tqdm import tqdm
 from combi import combi_method
 from helpers import postprocess_weights, chi_square, compute_metrics, plot_pvalues, generate_name_from_params, generate_syn_phenotypes
 
 from parameters_complete import random_state, nb_of_jobs, pnorm_feature_scaling, filter_window_size, p_svm, p_pnorm_filter, n_total_snps, top_k, ttbr, thresholds, IMG_DIR, DATA_DIR, NUMPY_ARRAYS, alpha_sig_toy
 from joblib import Parallel, delayed
-from combi import classifier, permuted_deepcombi_method
+from combi import toy_classifier, permuted_deepcombi_method
 import innvestigate
 import innvestigate.utils as iutils
 import matplotlib
@@ -27,17 +27,6 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 
-
-best_params_montaez_2 = {
-    'epochs': 800,
-    'batch_size': 32,   
-    'l1_reg': 1e-4,
-    'l2_reg': 1e-6,
-    'lr' : 0.01,
-    'dropout_rate':0.5,
-    'factor':0.7125,
-    'patience':50,
-}
 
 
 
@@ -111,8 +100,8 @@ class TestDeepCOMBI(object):
 
             
 
-                classifier.fit(x_2d, y)
-                svm_weights = classifier.coef_[0] # n_snps * 3
+                toy_classifier.fit(x_2d, y)
+                svm_weights = toy_classifier.coef_[0] # n_snps * 3
                 axes[0][2*i+1].plot(np.absolute(svm_weights).reshape(-1,3).sum(1))
                 axes[1][2*i+1].plot(np.absolute(svm_weights).reshape(-1,3).sum(1))
                 axes[2][2*i+1].plot(np.absolute(svm_weights).reshape(-1,3).sum(1))
@@ -239,7 +228,7 @@ class TestDeepCOMBI(object):
                         ]).history['val_acc'][-1]
 
         def fit_svm(x, y, idx):
-            svm_model = classifier.fit(x[idx.train], y[idx.train])
+            svm_model = toy_classifier.fit(x[idx.train], y[idx.train])
             return svm_model.score(x[idx.test], y[idx.test])
             
 
@@ -344,14 +333,15 @@ class TestDeepCOMBI(object):
         res_combi = np.array(Parallel(n_jobs=-1, require='sharedmem')(delayed(compute_metrics)(
             pvalues_per_run_combi, true_pvalues, threshold) for threshold in tqdm(thresholds)))
 
+
         # T_star  - WARNING TAKES FOREVER
         tpr_permuted = 0
         fwer_permuted = 0
         precision_permuted = 0
         
+        """
         for i in range(rep):
             with tensorflow.Session().as_default():
-
                 model = create_montaez_dense_model_2(best_params_montaez_2)
                 t_star = permuted_deepcombi_method(model, h5py_data[str(i)][:], fm_3d[str(i)][:], labels[str(i)], labels_cat[str(i)], n_permutations, alpha_sig_toy, pnorm_feature_scaling, filter_window_size, top_k, mode='all' )
                 ground_truth = np.zeros((1,n_total_snps),dtype=bool)
@@ -363,6 +353,7 @@ class TestDeepCOMBI(object):
         tpr_permuted/=rep
         fwer_permuted/=rep
         precision_permuted/=rep
+        """
 
         tpr_combi, _, fwer_combi, precision_combi = res_combi.T
 
@@ -414,11 +405,11 @@ class TestDeepCOMBI(object):
         np.save(os.path.join(NUMPY_ARRAYS,'rpvt-precision-{}'.format(ttbr)), precision_rpvt)
 
         
-        # CHALLENGER
+        # Plot CHALLENGER
         for i,window in enumerate(window_lengths):
             pvalues_challenger = pvalues_per_run_dense[:,i]
 
-
+            
             res_dense = np.array(Parallel(n_jobs=-1, require='sharedmem')(delayed(compute_metrics)(
                 pvalues_challenger, true_pvalues, threshold) for threshold in tqdm(thresholds)))
 
@@ -488,7 +479,7 @@ class TestDeepCOMBI(object):
 
 
             # Plot distribution of svm weights
-            svm_weights = classifier.fit(x_2d, labels).coef_
+            svm_weights = toy_classifier.fit(x_2d, labels).coef_
             axes[i][3].plot(np.absolute(svm_weights).reshape(-1,3).sum(1), label='ttbr={}'.format(ttbr))
             axes[i][3].legend()
             axes[i][3].set_title('Absolute SVM weight')

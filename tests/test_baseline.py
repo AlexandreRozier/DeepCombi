@@ -1,6 +1,6 @@
 import os
 from sklearn import svm
-from sklearn.tree import DecisionTreeClassifier
+from sklearn.tree import DecisionTreetoy_classifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import roc_auc_score
 import numpy as np
@@ -39,11 +39,11 @@ class TestBaselines(object):
         train_scores = np.zeros(len(c_candidates))
         for i,c in tqdm(enumerate(c_candidates)):
 
-            classifier = svm.LinearSVC(C=c, penalty='l2', verbose=0, dual=True, 
+            toy_classifier = svm.LinearSVC(C=c, penalty='l2', verbose=0, dual=True, 
                                         random_state=seed)
-            classifier.fit(features.train, labels.train )
-            train_scores[i] = classifier.score(features.train, labels.train )
-            val_scores[i] = classifier.score(features.test, labels.test )
+            toy_classifier.fit(features.train, labels.train )
+            train_scores[i] = toy_classifier.score(features.train, labels.train )
+            val_scores[i] = toy_classifier.score(features.test, labels.test )
 
         max_idx = np.argmax(val_scores)
         print("SVM train_acc: {} (std={}) ; obtained with C={} ".format(train_scores[max_idx],np.std(train_scores), train_scores[max_idx]))
@@ -60,9 +60,9 @@ class TestBaselines(object):
         scores = np.zeros(len(c_candidates))
         for i,c in tqdm(enumerate(c_candidates)):
 
-            classifier = svm.SVC(C=c, kernel='rbf', verbose=0, random_state=seed)
-            classifier.fit(features.train, labels.train )
-            scores[i] = classifier.score(features.test, labels.test )
+            toy_classifier = svm.SVC(C=c, kernel='rbf', verbose=0, random_state=seed)
+            toy_classifier.fit(features.train, labels.train )
+            scores[i] = toy_classifier.score(features.test, labels.test )
 
         max_idx = np.argmax(scores)
         
@@ -75,28 +75,28 @@ class TestBaselines(object):
 
         features, labels = f_and_l(embedding_type="2d", categorical=False)
 
-        classifier = DecisionTreeClassifier(random_state=seed)
-        classifier.fit(features.train, labels.train)
-        score = classifier.score(features.test, labels.test)
+        toy_classifier = DecisionTreetoy_classifier(random_state=seed)
+        toy_classifier.fit(features.train, labels.train)
+        score = toy_classifier.score(features.test, labels.test)
 
-        probas = classifier.predict_proba(features.test)[:, 1]
+        probas = toy_classifier.predict_proba(features.test)[:, 1]
         roc_auc = roc_auc_score(labels.test, probas)
 
         print("Decision Trees val_acc: {}; ROC Auc: {}".format(score, roc_auc))
 
-    def test_linear_classifier_baseline(self, f_and_l):
+    def test_linear_toy_classifier_baseline(self, f_and_l):
         """
         Uses the same algorithm as LinearSVC, but with log loss instead of hinge loss.
         """
         features, labels = f_and_l(embedding_type="2d", categorical=False)
 
-        classifier = LogisticRegression(
+        toy_classifier = LogisticRegression(
             C=Cs, penalty="l2", dual=True, verbose=0, random_state=seed)
-        classifier.fit(features.train, labels.train)
-        assert(classifier.classes_.shape[0] == 2)
-        score = classifier.score(features.test, labels.test)
+        toy_classifier.fit(features.train, labels.train)
+        assert(toy_classifier.classes_.shape[0] == 2)
+        score = toy_classifier.score(features.test, labels.test)
 
-        probas = classifier.predict_proba(features.test)[:, 1]
+        probas = toy_classifier.predict_proba(features.test)[:, 1]
         roc_auc = roc_auc_score(labels.test, probas)
 
         print("Logistic val_acc: {}; ROC Auc: {}".format(score, roc_auc))

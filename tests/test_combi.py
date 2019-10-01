@@ -34,14 +34,14 @@ class TestCombi(object):
         with h5py.File(DATA_DIR+ '/bett_labels.h5py', 'r') as l, h5py.File(DATA_DIR+ '/bett_data.h5py', 'r') as d :
             b_labels =  l['X'][:]
             b_data =  d['X'][:]
-        classifier = svm.LinearSVC(C=Cs, penalty='l2', tol=svm_epsilon, verbose=0, dual=True)
+        toy_classifier = svm.LinearSVC(C=Cs, penalty='l2', tol=svm_epsilon, verbose=0, dual=True)
         bfm = h5py_to_featmat( b_data )
 
-        classifier.fit(bfm, b_labels)
-        print("SVM score on Bettina's data: {}".format(classifier.score(bfm, b_labels)))
+        toy_classifier.fit(bfm, b_labels)
+        print("SVM score on Bettina's data: {}".format(toy_classifier.score(bfm, b_labels)))
     
         result = {}
-        classifier = svm.LinearSVC(C=Cs, penalty='l2', tol=svm_epsilon, verbose=0, dual=True)
+        toy_classifier = svm.LinearSVC(C=Cs, penalty='l2', tol=svm_epsilon, verbose=0, dual=True)
         
         for ttbr in [6]:
             
@@ -50,8 +50,8 @@ class TestCombi(object):
             labels = generate_syn_phenotypes(root_path=DATA_DIR, ttbr=ttbr)
             for i, key in enumerate(list(h5py_data.keys())):
                 featmat = h5py_to_featmat( h5py_data[key][:] )
-                classifier.fit(featmat, labels[key])
-                train_accuracies[i] = classifier.score(featmat, labels[key])
+                toy_classifier.fit(featmat, labels[key])
+                train_accuracies[i] = toy_classifier.score(featmat, labels[key])
             result[str(ttbr)] = 'mean:{}; std: {}; best:{}'.format(np.mean(train_accuracies), np.std(train_accuracies), np.max(train_accuracies))
         
         print(result)
@@ -92,7 +92,7 @@ class TestCombi(object):
 
         top_indices_sorted, top_pvalues = combi_method(b_data, b_labels, pnorm_feature_scaling,
                             filter_window_size, top_k)
-        self.plot_pvalues(complete_pvalues, top_indices_sorted,top_pvalues, axes[0])
+        plot_pvalues(complete_pvalues, top_indices_sorted,top_pvalues, axes[0])
         axes[0].legend(["Matlab-generated data; Ttbr={}".format(6)])
 
         for i, ttbr in enumerate(ttbrs):
@@ -103,7 +103,7 @@ class TestCombi(object):
 
             top_indices_sorted, top_pvalues = combi_method(h5py_data, labels, pnorm_feature_scaling,
                                 filter_window_size, top_k)
-            self.plot_pvalues(complete_pvalues, top_indices_sorted, top_pvalues, axes[i+1])
+            plot_pvalues(complete_pvalues, top_indices_sorted, top_pvalues, axes[i+1])
             axes[i+1].legend(["Python-generated data; ttbr={}".format(ttbr)])
             fig.savefig(os.path.join(IMG_DIR,'combi_comparison.png'))
     
@@ -125,7 +125,7 @@ class TestCombi(object):
 
             top_indices_sorted, top_pvalues = combi_method(data, labels[key], pnorm_feature_scaling,
                                 filter_window_size, top_k)
-            self.plot_pvalues(complete_pvalues, top_indices_sorted, top_pvalues, axes[i])
+            plot_pvalues(complete_pvalues, top_indices_sorted, top_pvalues, axes[i])
         fig.savefig(os.path.join(IMG_DIR,'combi_multiple_runs.png'), dpi=100)
     
         

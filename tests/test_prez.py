@@ -1,6 +1,6 @@
 import numpy as np
 import os 
-from combi import classifier
+from combi import toy_classifier
 import matplotlib.pyplot as plt
 from parameters_complete import IMG_DIR
 import tensorflow
@@ -24,8 +24,8 @@ class TestPrez(object):
         fig, axes = plt.subplots(1)
             
 
-        classifier.fit(x_2d, labels['0'])
-        svm_weights = classifier.coef_[0] # n_snps * 3
+        toy_classifier.fit(x_2d, labels['0'])
+        svm_weights = toy_classifier.coef_[0] # n_snps * 3
         abs_weights = np.absolute(svm_weights).reshape(-1,3).sum(1)
         abs_weights = abs_weights/np.max(abs_weights)
 
@@ -83,8 +83,8 @@ class TestPrez(object):
 
     
 
-        classifier.fit(x_2d, y)
-        svm_weights = np.absolute(classifier.coef_[0]).reshape(-1,3).sum(1) # n_snps * 3
+        toy_classifier.fit(x_2d, y)
+        svm_weights = np.absolute(toy_classifier.coef_[0]).reshape(-1,3).sum(1) # n_snps * 3
         
         axes[0][1].plot(svm_weights)
         axes[0][1].set_title('SVM Preprocessing')

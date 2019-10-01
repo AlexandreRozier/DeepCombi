@@ -19,7 +19,7 @@ def DTD(x,cl,gamma=None,epsilon=None,net='vgg16'):
 
     model.eval()
 
-    layers = list(model._modules['features']) + vggutils.toconv(list(model._modules['classifier']))
+    layers = list(model._modules['features']) + vggutils.toconv(list(model._modules['toy_classifier']))
 
     X     = [x.data]+[None for l in layers]
 

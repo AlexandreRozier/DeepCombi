@@ -11,21 +11,22 @@ import os
 from sklearn.preprocessing import StandardScaler
 from parameters_complete import TEST_DIR, svm_epsilon, p_svm, p_pnorm_filter
 from helpers import moving_average, chi_square, h5py_to_featmat, postprocess_weights
-from parameters_complete import Cs, n_total_snps, random_state
+from parameters_complete import Cs, real_Cs, n_total_snps, random_state
 from joblib import Parallel, delayed
 import tensorflow
 import innvestigate
 import innvestigate.utils as iutils
 from keras.utils import to_categorical
 
-classifier = svm.LinearSVC(C=Cs, penalty='l2', tol=svm_epsilon, verbose=0, dual=True)
+toy_classifier = svm.LinearSVC(C=Cs, penalty='l2', tol=svm_epsilon, verbose=0, dual=True)
+real_classifier = svm.LinearSVC(C=real_Cs, penalty='l2', tol=svm_epsilon, verbose=0, dual=True)
 
 def svm_step(featmat_2d, labels, filter_window_size, top_k , p):
     """ SVM training + weights postprocessing
     """
-    classifier.fit(featmat_2d, labels)
-    print("First step: SVM train_acc: {}".format(classifier.score(featmat_2d, labels)))
-    weights = classifier.coef_[0] # n_snps * 3
+    toy_classifier.fit(featmat_2d, labels)
+    print("First step: SVM train_acc: {}".format(toy_classifier.score(featmat_2d, labels)))
+    weights = toy_classifier.coef_[0] # n_snps * 3
     
     top_indices_sorted, _ = postprocess_weights(weights,top_k, filter_window_size, p_svm, p_pnorm_filter)
     return top_indices_sorted

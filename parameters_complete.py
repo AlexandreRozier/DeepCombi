@@ -10,8 +10,8 @@ if 'PREFIX' not in os.environ:
     os.environ['PREFIX'] = "default"
 
 
-disease_IDs =['CD',] #'BD','CAD','HT','RA','T1D','T2D']
-diseases = ['Crohns disease',]#'Bipolar disorder', 'Coronary artery disease','Hypertension','Rheumatoid arthritis','Type 1 Diabetes','Type 2 diabetes']
+disease_IDs =['CD', 'BD','CAD','HT','RA','T1D','T2D']
+diseases = ['Crohns disease','Bipolar disorder', 'Coronary artery disease','Hypertension','Rheumatoid arthritis','Type 1 Diabetes','Type 2 diabetes']
      
 
 ROOT_DIR = os.environ['ROOT_DIR']
@@ -34,7 +34,7 @@ top_k= 30
 real_top_k = 100
 
 ################################
-#rep= 4 #<<<<<<<<<<<<<<<<<<<<<<<<<#########################
+
 nb_of_jobs = 31
 
 
@@ -64,10 +64,10 @@ real_pnorm_feature_scaling = 6
 
 filter_window_size= 35  # 35 # 1-41, odd!!!
 p_pnorm_filter = 2 # 1,2,4,100, 0.25, 0.5
+real_p_pnorm_filter =5 # 1,2,4,100, 0.25, 0.5
 classy= 'LIBLINEAR_L2R_L1LOSS_SVC_DUAL'  # Can be: LIBLINEAR_L2R_LR, LIBLINEAR_L2R_L2LOSS_SVC_DUAL, LIBLINEAR_L2R_L2LOSS_SVC, LIBLINEAR_L2R_L1LOSS_SVC_DUAL
 
 filter_window_size_mtest = 9 # 1-41, odd!!!
-p_pnorm_filter_mtest = 6# 1,2,4,100, 0.25, 0.5
 
 p_svm = 2
 svm_epsilon = 1e-3

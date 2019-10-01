@@ -62,29 +62,38 @@ def fm(h5py_data):
 
 @pytest.fixture(scope="module")
 def real_h5py_data():
-    def real_data_(chrom):
-        return h5py.File(os.path.join(DATA_DIR,'chromo_{}.h5py'.format(chrom)),'r').get('X')
+    def real_data_(disease, chrom):
+        return h5py.File(os.path.join(DATA_DIR,disease,'chromo_{}.h5py'.format(chrom)),'r').get('X')
         
     return real_data_
 
 @pytest.fixture(scope='module')
 def real_labels():
-    return scipy.io.loadmat(os.path.join(DATA_DIR,'labels.mat'))['y'][0]
-    
+    def real_labels_(disease):
+
+        return scipy.io.loadmat(os.path.join(DATA_DIR,disease,'labels.mat'))['y'][0]
+    return real_labels_
+
 @pytest.fixture(scope='module')
 def real_labels_0based(real_labels):
-    return (real_labels+1)/2
+    def real_labels_0based_(disease):
+        return (real_labels(disease)+1)/2
+    return real_labels_0based_
 
 @pytest.fixture(scope='module')
 def real_labels_cat(real_labels_0based):
-    return tf.keras.utils.to_categorical(real_labels_0based)
+    def real_labels_cat_(disease):
+        return tf.keras.utils.to_categorical(real_labels_0based(disease))
+    return real_labels_cat_
 
 @pytest.fixture(scope='module')
 def real_idx(real_h5py_data, real_labels_0based):
-    n_subjects = len(real_labels_0based)
-    splitter =  StratifiedShuffleSplit(n_splits=1, test_size = TEST_PERCENTAGE, random_state=random_state)
-    train_indices, test_indices = next(splitter.split(np.zeros(n_subjects), real_labels_0based))
-    return Indices(train_indices, test_indices, None)     
+    def real_idx_(disease):
+        n_subjects = len(real_labels_0based(disease))
+        splitter =  StratifiedShuffleSplit(n_splits=1, test_size = TEST_PERCENTAGE, random_state=random_state)
+        train_indices, test_indices = next(splitter.split(np.zeros(n_subjects), real_labels_0based(disease)))
+        return Indices(train_indices, test_indices, None)   
+    return real_idx_  
 
 @pytest.fixture(scope='module')
 def alphas():
