@@ -42,13 +42,14 @@ class TestPipeline(object):
             for chromo in tqdm(range(1, 23)):
 
                 data = real_h5py_data(disease, chromo)
-                fm = char_matrix_to_featmat(data, '3d')
+                fm_2D = char_matrix_to_featmat(data, '2d')
+                fm_3D = char_matrix_to_featmat(data, '3d')
                 labels = real_labels(disease)
-                indices = offset + combi_method(data, fm, labels, filter_window_size, real_p_pnorm_filter,
+                indices = offset + combi_method(data, fm_2D, labels, filter_window_size, real_p_pnorm_filter,
                                                     p_svm, top_k=real_top_k)[0]
                 selected_indices.append(indices)
-                offset += fm.shape[1]
-                del data, fm
+                offset += fm_3D.shape[1]
+                del data, fm_2D, fm_3D
 
             np.save(os.path.join(FINAL_RESULTS_DIR, 'combi_selected_indices', disease), selected_indices)
 
@@ -56,6 +57,7 @@ class TestPipeline(object):
 
 
         combined_labels = pd.Series()
+        combined_combi_scores = pd.DataFrame()
         combined_deepcombi_scores = pd.DataFrame()
         combined_rpvt_scores = pd.DataFrame()
 
@@ -95,6 +97,7 @@ class TestPipeline(object):
             assert len(sorted_raw_pvalues_genome_peaks.index) == len(queries.index)
             sorted_raw_pvalues_genome_peaks['rs_identifier'] = queries.rs_identifier.tolist()
 
+            # CREATE GROUND TRUTH LABELS
             # Note: tp_df DO NOT HAVE A VALID INDEX
             tp_df = pd.read_csv(os.path.join(DATA_DIR, 'results', '{}.txt'.format(disease)), delim_whitespace=True)
             tp_df = tp_df.rename(columns={"#SNP_A": "rs_identifier"})
@@ -102,14 +105,18 @@ class TestPipeline(object):
                                                                         how='right').set_index('index')
             tp_df = tp_df.rename(columns={"pvalue_x": "pvalue"}).drop(columns=['pvalue_y'])
 
-            # Create labels
             pvalues_peak_labels = pd.Series(np.zeros(len(sorted_raw_pvalues_genome_peaks.index)),
                                        sorted_raw_pvalues_genome_peaks.index)
             pvalues_peak_labels.loc[np.intersect1d(sorted_raw_pvalues_genome_peaks.index, tp_df.index)] = 1
             combined_labels = pd.concat([combined_labels, pvalues_peak_labels])
 
-            # Combi
-
+            # COMBI
+            selected_combi_indices = np.load(
+                os.path.join(FINAL_RESULTS_DIR, 'selected_combi_indices', '{}.npy'.format(disease))).flatten()
+            selected_combi_pvalues_peaks = sorted_raw_pvalues_genome_peaks.loc[
+                np.intersect1d(selected_combi_indices, sorted_raw_pvalues_genome_peaks.index)]
+            assert len(selected_combi_pvalues_peaks) > 0
+            combined_combi_scores = pd.concat([combined_combi_scores, selected_combi_pvalues_peaks])
 
             # DeepCombi
             selected_deepcombi_indices = np.load(os.path.join(FINAL_RESULTS_DIR, 'selected_indices', '{}.npy'.format(disease))).flatten()
@@ -122,6 +129,11 @@ class TestPipeline(object):
             selected_rpvt = sorted_raw_pvalues_genome_peaks[sorted_raw_pvalues_genome_peaks.pvalue < 1e-5]
             combined_rpvt_scores = pd.concat([combined_rpvt_scores, selected_rpvt ])
 
+        combi_fpr, combi_tpr, thresholds = roc_curve(
+            combined_labels.loc[combined_combi_scores.index].values,
+            -np.log10(combined_combi_scores.pvalue.values))
+        combi_tp = combi_tpr * len(combined_combi_scores.index)
+        combi_fp = combi_fpr * len(combined_combi_scores.index)
 
         deepcombi_fpr, deepcombi_tpr, thresholds =  roc_curve(combined_labels.loc[combined_deepcombi_scores.index].values, -np.log10(combined_deepcombi_scores.pvalue.values) )
         deepcombi_tp = deepcombi_tpr * len(combined_deepcombi_scores.index)
@@ -133,6 +145,7 @@ class TestPipeline(object):
 
         fig = plt.figure()
         plt.plot(deepcombi_fp, deepcombi_tp, label='deepcombi')
+        plt.plot(combi_fp, combi_tp, label='combi')
         plt.plot(rpvt_fp, rpvt_tp, label='rpvt')
         plt.xlabel('FP')
         plt.ylabel('TP')
