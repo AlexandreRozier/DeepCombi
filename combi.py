@@ -41,8 +41,9 @@ def combi_method(data, fm, labels, filter_window_size, pnorm_filter, psvm, top_k
     pvalues = chi_square(data[:,top_indices_sorted], labels)
 
     return top_indices_sorted, pvalues
-  
-def deepcombi_method(model, data, fm, labels, labels_cat, filter_window_size, pnorm_filter, psvm, top_k):
+
+
+def deepcombi_method(model, data, fm, labels, filter_window_size, pnorm_filter, psvm, top_k):
         
     for i, layer in enumerate(model.layers):
             if layer.name == 'dense_1':
@@ -87,7 +88,7 @@ def permuted_deepcombi_method(model, data, fm, labels, labels_cat, filter_window
     def f():
         permuted_labels = random_state.permutation(labels)
         permuted_labels_cat = to_categorical((permuted_labels+1)/2)
-        _, pvalues = deepcombi_method(model, data, fm, permuted_labels,permuted_labels_cat,filter_window_size, pnorm_filter, psvm, top_k)
+        _, pvalues = deepcombi_method(model, data, fm, permuted_labels, filter_window_size, pnorm_filter, psvm, top_k)
         if mode=='min':
             return  np.array(pvalues.min())
         elif mode=='all':

@@ -59,9 +59,9 @@ def fm(h5py_data):
     return fm_
 
 @pytest.fixture(scope="module")
-def real_pvalues(h5py_data):
+def real_pvalues():
     def real_pvalues_(disease, chromo):
-        return np.load(os.path.join(FINAL_RESULTS_DIR, 'pvalues', disease, str(chromo)))
+        return np.load(os.path.join(FINAL_RESULTS_DIR, 'pvalues', disease, '{}.npy'.format(chromo)))
     return real_pvalues_
 
 
