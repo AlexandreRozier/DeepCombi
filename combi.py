@@ -9,9 +9,8 @@ from tqdm import tqdm
 import math
 import os 
 from sklearn.preprocessing import StandardScaler
-from parameters_complete import TEST_DIR, svm_epsilon, p_svm, p_pnorm_filter
 from helpers import moving_average, chi_square, h5py_to_featmat, postprocess_weights
-from parameters_complete import Cs, real_Cs, n_total_snps, random_state
+from parameters_complete import TEST_DIR, svm_epsilon, Cs, real_Cs, n_total_snps, random_state
 from joblib import Parallel, delayed
 import tensorflow
 import innvestigate
@@ -21,55 +20,46 @@ from keras.utils import to_categorical
 toy_classifier = svm.LinearSVC(C=Cs, penalty='l2', tol=svm_epsilon, verbose=0, dual=True)
 real_classifier = svm.LinearSVC(C=real_Cs, penalty='l2', tol=svm_epsilon, verbose=0, dual=True)
 
-def svm_step(featmat_2d, labels, filter_window_size, top_k , p):
-    """ SVM training + weights postprocessing
-    """
-    toy_classifier.fit(featmat_2d, labels)
-    print("First step: SVM train_acc: {}".format(toy_classifier.score(featmat_2d, labels)))
-    weights = toy_classifier.coef_[0] # n_snps * 3
-    
-    top_indices_sorted, _ = postprocess_weights(weights,top_k, filter_window_size, p_svm, p_pnorm_filter)
-    return top_indices_sorted
 
 
-def dnn_step(model,hp, data, featmat_3d, labels, labels_cat, g, filter_window_size, top_k, p):
-    
-    with tensorflow.Session().as_default():
-        # Super time-consuming
-        model.fit(...)
-        
-        model = iutils.keras.graph.model_wo_softmax(model)
-        analyzer = innvestigate.analyzer.LRPAlpha1Beta0(model)
-        weights = analyzer.analyze(featmat_3d).sum(0)
-        
-        if np.max(abs(weights)) < 0.005:
-            raise Exception("Model failed to train")
-        
-        top_indices_sorted,_ = postprocess_weights(weights, top_k, filter_window_size, p_svm, p_pnorm_filter)
-    
-    return top_indices_sorted
-
-def combi_method(data, fm, labels, p, filter_window_size, top_k=0):
+def combi_method(data, fm, labels, filter_window_size, pnorm_filter, psvm, top_k):
     """
     data: (n, n_snps, 2) SNPs-to-person matrix
     labels: (n)
     top_k: Keep K greatest SVM weight vector values
-    pnorm_feature_scaling: unused, default to normalizing with norm 2
      
     RETURNS: indices, pvalues 
     """
     
     # SVM Step to select the most k promising SNPs
-    top_indices_sorted = svm_step(fm, labels, filter_window_size, top_k, p)
+    toy_classifier.fit(fm, labels)
+    weights = toy_classifier.coef_[0] # n_snps * 3
+    
+    top_indices_sorted, _ = postprocess_weights(weights,top_k, filter_window_size, psvm, pnorm_filter)
     
     # For those SNPs, compute p-values on the second half of the data
     pvalues = chi_square(data[:,top_indices_sorted], labels)
 
     return top_indices_sorted, pvalues
   
-def deepcombi_method(model, data, fm, labels, labels_cat, p, filter_window_size, top_k=0):
-  
-    top_indices_sorted = dnn_step(model, data, fm, labels, labels_cat, filter_window_size, top_k, p)
+def deepcombi_method(model, data, fm, labels, labels_cat, filter_window_size, pnorm_filter, psvm, top_k):
+        
+    for i, layer in enumerate(model.layers):
+            if layer.name == 'dense_1':
+                layer.name = 'blu{}'.format(str(i))
+            if layer.name == 'dense_2':
+                layer.name = 'bla{}'.format(str(i))
+            if layer.name == 'dense_3':
+                layer.name = 'bleurg{}'.format(str(i))
+
+    model = iutils.keras.graph.model_wo_softmax(model)
+    analyzer = innvestigate.analyzer.LRPAlpha1Beta0(model)
+    weights = analyzer.analyze(fm).sum(0)
+    
+    if np.max(abs(weights)) < 0.005:
+        raise Exception("Model failed to train")
+    
+    top_indices_sorted,_ = postprocess_weights(weights, top_k, filter_window_size, psvm, pnorm_filter)
     
     pvalues = chi_square(data[:,top_indices_sorted], labels)
 
@@ -77,11 +67,11 @@ def deepcombi_method(model, data, fm, labels, labels_cat, p, filter_window_size,
 
 
 
-def permuted_combi_method(data, fm, labels, n_permutations, alpha, *args):
+def permuted_combi_method(data, fm, labels, filter_window_size, pnorm_filter, psvm, top_k, n_permutations, alpha):
 
     def f():
         permuted_labels = random_state.permutation(labels)
-        _, pvalues = combi_method(data, fm, permuted_labels, *args)
+        _, pvalues = combi_method(data, fm, permuted_labels, filter_window_size, pnorm_filter, psvm, top_k)
         return  pvalues.min()
     
     min_pvalues = Parallel(n_jobs=-1, require='sharedmem')(delayed(f)() for i in tqdm(range(n_permutations)))
@@ -92,12 +82,12 @@ def permuted_combi_method(data, fm, labels, n_permutations, alpha, *args):
     return t_star
 
 
-def permuted_deepcombi_method(model, data, fm, labels, labels_cat, n_permutations, alpha, *args, mode='min'):
+def permuted_deepcombi_method(model, data, fm, labels, labels_cat, filter_window_size, pnorm_filter, psvm, top_k, n_permutations, alpha, mode='min'):
 
     def f():
         permuted_labels = random_state.permutation(labels)
         permuted_labels_cat = to_categorical((permuted_labels+1)/2)
-        _, pvalues = deepcombi_method(model, data, fm, permuted_labels,permuted_labels_cat, *args)
+        _, pvalues = deepcombi_method(model, data, fm, permuted_labels,permuted_labels_cat,filter_window_size, pnorm_filter, psvm, top_k)
         if mode=='min':
             return  np.array(pvalues.min())
         elif mode=='all':

@@ -25,7 +25,7 @@ from combi import combi_method
 from helpers import postprocess_weights, chi_square, compute_metrics, plot_pvalues, generate_name_from_params, \
     generate_syn_phenotypes
 
-from parameters_complete import random_state, nb_of_jobs, pnorm_feature_scaling, filter_window_size, p_svm, \
+from parameters_complete import random_state, nb_of_jobs, filter_window_size, p_svm, \
     p_pnorm_filter, n_total_snps, top_k, ttbr, thresholds, IMG_DIR, DATA_DIR, NUMPY_ARRAYS, alpha_sig_toy
 from joblib import Parallel, delayed
 from combi import toy_classifier, permuted_deepcombi_method
@@ -249,12 +249,13 @@ class TestDeepCOMBI(object):
 
         window_lengths = [31, 35, 41]
 
+
         best_params_montaez_2['n_snps'] = n_total_snps
         n_permutations = 2
 
         def combi_compute_pvalues(d, x, l):
 
-            idx, pvalues = combi_method(d, x, l, pnorm_feature_scaling,
+            idx, pvalues = combi_method(d, x, l,
                                         filter_window_size, top_k)
             pvalues_filled = np.ones(n_total_snps)
             pvalues_filled[idx] = pvalues
@@ -338,7 +339,7 @@ class TestDeepCOMBI(object):
             with tensorflow.Session().as_default():
 
                 model = create_montaez_dense_model_2(best_params_montaez_2)
-                t_star = permuted_deepcombi_method(model, h5py_data[str(i)][:], fm_3d[str(i)][:], labels[str(i)], labels_cat[str(i)], n_permutations, alpha_sig_toy, pnorm_feature_scaling, filter_window_size, top_k, mode='all' )
+                t_star = permuted_deepcombi_method(model, h5py_data[str(i)][:], fm_3d[str(i)][:], labels[str(i)], labels_cat[str(i)], n_permutations, alpha_sig_toy, filter_window_size, top_k, mode='all' )
                 ground_truth = np.zeros((1,n_total_snps),dtype=bool)
                 ground_truth[:,5000:5020] = True
                 tpr, _, fwer, precision = compute_metrics(pvalues_per_run_rpvt[i], ground_truth, t_star) 
@@ -472,5 +473,6 @@ class TestDeepCOMBI(object):
             axes[i][3].plot(np.absolute(svm_weights).reshape(-1,3).sum(1), label='ttbr={}'.format(ttbr))
             axes[i][3].legend()
             axes[i][3].set_title('Absolute SVM weight')
+
 
             fig.savefig(os.path.join(IMG_DIR, 'manhattan-convdense-test.png'))

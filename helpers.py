@@ -154,7 +154,7 @@ def generate_syn_phenotypes(root_path=DATA_DIR, ttbr=ttbr, prefix="syn", n_info_
 
 
 
-def char_matrix_to_featmat(data, embedding_type='2d'):
+def char_matrix_to_featmat(data, embedding_type='2d', norm_feature_scaling=pnorm_feature_scaling,):
     
     ###  Global Parameters   ###
     (n_subjects, num_snp3, _) = data.shape
@@ -198,8 +198,8 @@ def char_matrix_to_featmat(data, embedding_type='2d'):
 
     # Rescale feature matrix
     f_m -= np.mean(f_m, axis=0)
-    stddev = (np.mean(np.abs(f_m)**pnorm_feature_scaling, axis=0)
-            * f_m.shape[1])**(1.0/pnorm_feature_scaling)
+    stddev = (np.mean(np.abs(f_m)**norm_feature_scaling, axis=0)
+            * f_m.shape[1])**(1.0/norm_feature_scaling)
     
     # Safe division
     f_m = np.divide(f_m, stddev, out=np.zeros_like(f_m), where=stddev!=0)
@@ -210,7 +210,7 @@ def char_matrix_to_featmat(data, embedding_type='2d'):
     elif(embedding_type == '3d'):
         f_m = np.reshape(f_m, (n_subjects, num_snp3, 3))
 
-    return f_m
+    return f_m.astype(float)
 
 
 
@@ -252,7 +252,7 @@ def h5py_to_featmat(h5py_data, embedding_type='2d', overwrite=False):
 
 
 
-def moving_average(w, k, p=1):
+def moving_average(w, k, pnorm_filter):
     """
     Inspired from https://uk.mathworks.com/matlabcentral/fileexchange/12276-moving_average-v3-1-mar-2008
     """
@@ -262,15 +262,15 @@ def moving_average(w, k, p=1):
 
     assert(k % 2 == 1)
 
-    wnew = w ** p
+    wnew = w ** pnorm_filter
     wnew = np.concatenate((
         np.zeros(int((k-1)/2+1)),
         wnew,
         np.zeros(int((k-1)/2))),
         axis=None)
     wnew = np.cumsum(wnew)
-    wnew = (wnew[k:] - wnew[0:-k])**(1.0/p)
-    wnew /= k**(1.0/p)
+    wnew = (wnew[k:] - wnew[0:-k])**(1.0/pnorm_filter)
+    wnew /= k**(1.0/pnorm_filter)
     return wnew
 
 
@@ -387,7 +387,7 @@ def postprocess_weights(weights,top_k, filter_window_size, p_svm, p_pnorm_filter
     weights = weights.reshape(-1, 3) # Group  weights by 3 (yields locus's importance measure)
     weights = np.sum(weights**p_svm, axis=1)**(1.0/p_svm)
     weights /= np.linalg.norm(weights, ord=2)
-    weights = moving_average(weights,filter_window_size, p=p_pnorm_filter) 
+    weights = moving_average(weights,filter_window_size, p_pnorm_filter) 
     top_indices_sorted = weights.argsort()[::-1][:top_k] # Gets indices of top_k greatest elements
     return top_indices_sorted, weights
 

@@ -1,6 +1,6 @@
 import os
 from sklearn import svm
-from sklearn.tree import DecisionTreetoy_classifier
+from sklearn.tree import DecisionTreeClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import roc_auc_score
 import numpy as np

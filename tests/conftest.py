@@ -1,5 +1,5 @@
 import tensorflow as tf
-from parameters_complete import DATA_DIR, ttbr as default_ttbr, seed, random_state ,n_subjects, n_total_snps, noise_snps, inform_snps      , random_state
+from parameters_complete import DATA_DIR, ttbr as default_ttbr, seed, random_state ,n_subjects, n_total_snps, noise_snps, inform_snps      , random_state, FINAL_RESULTS_DIR
 from helpers import h5py_to_featmat, generate_syn_phenotypes
 from sklearn.model_selection import train_test_split, StratifiedShuffleSplit
 import numpy as np
@@ -58,20 +58,28 @@ def fm(h5py_data):
         return h5py_to_featmat(h5py_data, embedding_type=dimension)
     return fm_
 
+@pytest.fixture(scope="module")
+def real_pvalues(h5py_data):
+    def real_pvalues_(disease, chromo):
+        return np.load(os.path.join(FINAL_RESULTS_DIR, 'pvalues', disease, str(chromo)))
+    return real_pvalues_
 
 
 @pytest.fixture(scope="module")
 def real_h5py_data():
     def real_data_(disease, chrom):
-        return h5py.File(os.path.join(DATA_DIR,disease,'chromo_{}.h5py'.format(chrom)),'r').get('X')
+        return h5py.File(os.path.join(DATA_DIR,disease,'chromo_{}.h5py'.format(chrom)),'r').get('X')[:]
         
     return real_data_
 
 @pytest.fixture(scope='module')
 def real_labels():
     def real_labels_(disease):
+        try:
+            return scipy.io.loadmat(os.path.join(DATA_DIR, disease,'labels.mat'))['y'][0]
 
-        return scipy.io.loadmat(os.path.join(DATA_DIR,disease,'labels.mat'))['y'][0]
+        except Exception as identifier:
+            return h5py.File(os.path.join(DATA_DIR, disease,'labels.mat'),'r').get('y')[:].T[0]
     return real_labels_
 
 @pytest.fixture(scope='module')
@@ -97,12 +105,19 @@ def real_idx(real_h5py_data, real_labels_0based):
 
 @pytest.fixture(scope='module')
 def alphas():
-    return scipy.io.loadmat(os.path.join(DATA_DIR,'alpha_j.mat'))['alpha_j'].T[0]
-    
+    def alphas_(disease):
+
+        with h5py.File(os.path.join(DATA_DIR,disease,'alpha_j.mat', 'r')) as f:
+            return f['alpha_j'].T[0]    
+    return alphas_
+
 @pytest.fixture(scope='module')
 def alphas_EV():
-    return scipy.io.loadmat(os.path.join(DATA_DIR,'alpha_j_EV.mat'))['alpha_j_EV'].T[0]
+    def alphas_EV_(disease):
 
+        with h5py.File(os.path.join(DATA_DIR,disease,'alpha_j_EV.mat', 'r')) as f:
+            return f['alpha_j_EV'].T[0]   
+    return alphas_EV_
 
 @pytest.fixture(scope='function')
 def labels(rep, ttbr):

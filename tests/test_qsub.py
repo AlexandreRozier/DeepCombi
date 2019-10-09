@@ -14,8 +14,8 @@ import pickle
 import time
 from sklearn.model_selection import train_test_split, KFold
 
-from parameters_complete import (Cs, classy, filter_window_size,
-                                 p_pnorm_filter, pnorm_feature_scaling,
+from parameters_complete import (Cs, filter_window_size,
+                                 p_pnorm_filter,
                                  svm_rep, TEST_DIR, TALOS_OUTPUT_DIR, DATA_DIR, PARAMETERS_DIR)
 from models import  create_dense_model
 

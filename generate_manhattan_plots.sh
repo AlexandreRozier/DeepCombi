@@ -6,7 +6,7 @@ source ../pypa-virtualenv-ce9343c/combi/bin/activate # Necessary for model train
 
 echo "Bootstraping..."
 
-ROOT_DIR=$PWD python -m pytest -s tests/test_lotr.py::TestLOTR::test_train_models_with_best_params
+ROOT_DIR=$PWD python -m pytest -s tests/test_lotr.py::TestLOTR::test_generate_plots
 
 
 echo "Over."

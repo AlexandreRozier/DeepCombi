@@ -56,20 +56,20 @@ real_Cs= 1e-5
 seed = 666
 random_state = np.random.RandomState(seed)
 
-use_scaling = 1
-use_filter = 1
-
-pnorm_feature_scaling = 2 
-real_pnorm_feature_scaling = 6
 
 filter_window_size= 35  # 35 # 1-41, odd!!!
-p_pnorm_filter = 2 # 1,2,4,100, 0.25, 0.5
-real_p_pnorm_filter =5 # 1,2,4,100, 0.25, 0.5
-classy= 'LIBLINEAR_L2R_L1LOSS_SVC_DUAL'  # Can be: LIBLINEAR_L2R_LR, LIBLINEAR_L2R_L2LOSS_SVC_DUAL, LIBLINEAR_L2R_L2LOSS_SVC, LIBLINEAR_L2R_L1LOSS_SVC_DUAL
+
+# USED in char_matrix_to_featmat to scale the resulting feature matrix
+pnorm_feature_scaling = 2 
+real_pnorm_feature_scaling = 6 
+
+# USED TO APPLY SCALING ON WEIGHTS DURING THE POSTPROCESSING STEP 
+p_pnorm_filter = 2 
+real_p_pnorm_filter =5 
 
 filter_window_size_mtest = 9 # 1-41, odd!!!
 
-p_svm = 2
+p_svm = 2 # Used on SVM weights before applying postprocessing function 
 svm_epsilon = 1e-3
 
 rep_inform = 1

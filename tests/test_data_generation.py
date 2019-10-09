@@ -3,9 +3,9 @@ import scipy
 import os
 import numpy as np
 from tqdm import tqdm
-from helpers import generate_syn_genotypes, generate_syn_phenotypes, h5py_to_featmat, check_genotype_unique_allels
+from helpers import generate_syn_genotypes, generate_syn_phenotypes, h5py_to_featmat, check_genotype_unique_allels, char_matrix_to_featmat, chi_square
 from parameters_complete import (
-    DATA_DIR, noise_snps, inform_snps, n_total_snps, n_subjects, ttbr as ttbr) 
+    DATA_DIR, noise_snps, inform_snps, n_total_snps, n_subjects, ttbr as ttbr, disease_IDs, real_pnorm_feature_scaling, FINAL_RESULTS_DIR) 
 
 
 class TestDataGeneration(object):
@@ -82,4 +82,24 @@ class TestDataGeneration(object):
             assert fm3['0'].shape[0] == n_subjects
             assert fm2['0'].shape[1] == n_total_snps * 3
             assert fm3['0'].shape[1] == n_total_snps
+
+
+    def test_real_pvalues_generation(self, real_h5py_data, real_labels):
+        for disease_id in tqdm(['T1D', 'T2D']):
+            for chrom in tqdm(range(1,23)):
+                data = real_h5py_data(disease_id, chrom)
+                labels = real_labels(disease_id)
+
+                pvalues = chi_square(data, labels)
+                os.makedirs(os.path.dirname(os.path.join(FINAL_RESULTS_DIR,'pvalues',disease_id, str(chrom))), exist_ok=True)
+                
+                np.save(os.path.join(FINAL_RESULTS_DIR,'pvalues',disease_id, str(chrom)), pvalues)
+
+                del data, pvalues
+                
+
+    def test_real_labels(self, real_labels):
+        for disease_id in tqdm(disease_IDs):
+            labels = real_labels(disease_id)
+            print(labels)
 

@@ -21,8 +21,6 @@ tests/talos_output
 hps_results/
 qsub_errors/
 qsub_output/
-final_results/tb/
-final_results/models/
 final_results/
 talos_chrom*
 .pycharm_helpers/
