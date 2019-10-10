@@ -57,9 +57,6 @@ def deepcombi_method(model, data, fm, labels, filter_window_size, pnorm_filter, 
     analyzer = innvestigate.analyzer.LRPAlpha1Beta0(model)
     weights = analyzer.analyze(fm).sum(0)
     
-    if np.max(abs(weights)) < 0.005:
-        raise Exception("Model failed to train")
-    
     top_indices_sorted,_ = postprocess_weights(weights, top_k, filter_window_size, psvm, pnorm_filter)
     
     pvalues = chi_square(data[:,top_indices_sorted], labels)

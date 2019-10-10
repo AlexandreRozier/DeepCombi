@@ -18,22 +18,22 @@ class TestPipeline(object):
 
 
     def test_save_deepcombi_indices(self, real_h5py_data, real_labels):
-        for disease in tqdm(disease_IDs):
-            offset = 0
-            selected_indices = []
-            for chromo in tqdm(range(1,23)):
-                model = load_model(os.path.join(FINAL_RESULTS_DIR, 'trained_models', disease, 'model{}.h5'.format(chromo)))
+        disease = disease_IDs[int(os.environ['SGE_TASK_ID'])-1]
+        offset = 0
+        selected_indices = []
+        for chromo in tqdm(range(1,23)):
+            model = load_model(os.path.join(FINAL_RESULTS_DIR, 'trained_models', disease, 'model{}.h5'.format(chromo)))
 
-                data = real_h5py_data(disease,chromo)
-                fm = char_matrix_to_featmat(data, '3d')
-                labels = real_labels(disease)
-                indices = offset + deepcombi_method(model, data, fm, labels, filter_window_size, real_p_pnorm_filter,
-                                                    p_svm, top_k=real_top_k)[0]
-                selected_indices.append(indices)
-                offset += fm.shape[1]
-                del data, fm
-            
-            np.save(os.path.join(FINAL_RESULTS_DIR, 'selected_indices', disease ), selected_indices)
+            data = real_h5py_data(disease,chromo)
+            fm = char_matrix_to_featmat(data, '3d')
+            labels = real_labels(disease)
+            indices = offset + deepcombi_method(model, data, fm, labels, filter_window_size, real_p_pnorm_filter,
+                                                p_svm, top_k=real_top_k)[0]
+            selected_indices.append(indices)
+            offset += fm.shape[1]
+            del data, fm
+        
+        np.save(os.path.join(FINAL_RESULTS_DIR, 'selected_indices', disease ), selected_indices)
 
     def test_save_combi_indices(self, real_h5py_data, real_labels):
         for disease in tqdm(disease_IDs):
