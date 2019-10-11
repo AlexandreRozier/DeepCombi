@@ -110,6 +110,7 @@ class TestDataGeneration(object):
                     
                     scipy.io.savemat(os.path.join(DATA_DIR,disease,'chromo_{}_processed.mat'.format(i)), 
                         {'X':chrom_2}, 
+                        do_compression=True,
                         appendmat=False)
                     del chrom, chrom_2
                     
