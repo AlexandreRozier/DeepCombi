@@ -68,7 +68,7 @@ def real_pvalues():
 @pytest.fixture(scope="module")
 def real_h5py_data():
     def real_data_(disease, chrom):
-        return h5py.File(os.path.join(DATA_DIR,disease,'chromo_{}_processed.mat'.format(chrom)),'r').get('X')[:]
+        return scipy.io.loadmat(os.path.join(DATA_DIR,disease,'chromo_{}_processed.mat'.format(chrom)))['X'][:]
         
     return real_data_
 

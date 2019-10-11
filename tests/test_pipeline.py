@@ -4,7 +4,7 @@ import os
 import scipy
 import numpy as np
 from tqdm import tqdm
-from helpers import chi_square, char_matrix_to_featmat
+from helpers import chi_square, char_matrix_to_featmat, postprocess_weights
 from combi import deepcombi_method, combi_method, real_classifier
 from parameters_complete import IMG_DIR, DATA_DIR,FINAL_RESULTS_DIR, real_pnorm_feature_scaling, real_p_pnorm_filter, p_svm, real_top_k, FINAL_RESULTS_DIR, filter_window_size, disease_IDs
 from models import create_montaez_dense_model_2
@@ -17,9 +17,9 @@ from matplotlib import pyplot as plt
 class TestPipeline(object):
 
     def test_save_combi_accuracies(self, real_labels,real_idx, real_h5py_data):
-        for disease in disease_IDs:
+        for disease in tqdm(disease_IDs):
             scores = []
-            for chrom in range(1,23):   
+            for chrom in tqdm(range(1,23)):   
                 data = real_h5py_data(disease, chrom)
                 fm = char_matrix_to_featmat(data, '2d', real_pnorm_feature_scaling)
                 labels = real_labels(disease)
@@ -30,31 +30,34 @@ class TestPipeline(object):
             np.save(os.path.join(FINAL_RESULTS_DIR, 'accuracies',disease,'combi'), scores)
         
 
-    def test_save_combi_indices(self, real_h5py_data, real_labels):
+    def test_save_combi_rm_and_indices(self, real_h5py_data, real_labels):
         """ Extract indices gotten from combi
         """
-        for disease in tqdm(disease_IDs):
-            offset = 0
-            selected_indices = []
-            total_raw_rm = []
+        disease = disease_IDs[int(os.environ['SGE_TASK_ID'])-1]
+        offset = 0
+        selected_indices = []
+        total_raw_rm = []
 
-            for chromo in tqdm(range(1, 23)):
+        for chromo in tqdm(range(1,23)):
 
-                data = real_h5py_data(disease, chromo)
-                fm_2D = char_matrix_to_featmat(data, '2d', real_pnorm_feature_scaling)
-                fm_3D = char_matrix_to_featmat(data, '3d', real_pnorm_feature_scaling)
-                labels = real_labels(disease)
-                idx, _, raw_rm = combi_method(data, fm_2D, labels, filter_window_size, real_p_pnorm_filter,
-                                                    p_svm, top_k=real_top_k)
-                indices = offset + idx
-                selected_indices += indices.tolist()
-                offset += fm_3D.shape[1]
-                total_raw_rm += raw_rm.tolist()
+            data = real_h5py_data(disease, chromo)
+            fm_2D = char_matrix_to_featmat(data, '2d', real_pnorm_feature_scaling)
+            fm_3D = char_matrix_to_featmat(data, '3d', real_pnorm_feature_scaling)
+            labels = real_labels(disease)
+            idx, _, raw_rm = combi_method(data, fm_2D, labels, filter_window_size, real_p_pnorm_filter,
+                                                p_svm, top_k=real_top_k)
+            indices = offset + idx
+            selected_indices += indices.tolist()
+            offset += fm_3D.shape[1]
+            total_raw_rm += raw_rm.tolist()
 
-                del data, fm_2D, fm_3D
+            del data, fm_2D, fm_3D
 
-            np.save(os.path.join(FINAL_RESULTS_DIR, 'combi_selected_indices', disease), selected_indices)
-            np.save(os.path.join(FINAL_RESULTS_DIR, 'combi_raw_rm', disease ), total_raw_rm)
+        os.makedirs(os.path.join(FINAL_RESULTS_DIR, 'combi_selected_indices' ), exist_ok=True)
+        os.makedirs(os.path.join(FINAL_RESULTS_DIR, 'combi_raw_rm' ), exist_ok=True)
+
+        np.save(os.path.join(FINAL_RESULTS_DIR, 'combi_selected_indices', disease), selected_indices)
+        np.save(os.path.join(FINAL_RESULTS_DIR, 'combi_raw_rm', disease ), total_raw_rm)
 
 
     def test_save_deepcombi_rm_and_indices(self, real_h5py_data, real_labels):
@@ -78,18 +81,22 @@ class TestPipeline(object):
             offset += fm.shape[1]
             del data, fm, model
         
+        os.makedirs(os.path.join(FINAL_RESULTS_DIR, 'deepcombi_selected_indices'), exist_ok=True)
+        os.makedirs(os.path.join(FINAL_RESULTS_DIR, 'deepcombi_raw_rm'), exist_ok=True)
+
         np.save(os.path.join(FINAL_RESULTS_DIR, 'deepcombi_selected_indices', disease ), selected_indices)
         np.save(os.path.join(FINAL_RESULTS_DIR, 'deepcombi_raw_rm', disease ), total_raw_rm)
 
 
-    def test_read_data(self, real_pvalues):
+    def test_generate_roc_recall_curves(self, real_pvalues):
 
         combined_labels = pd.Series()
         combined_combi_pvalues = pd.DataFrame()
         combined_deepcombi_pvalues = pd.DataFrame()
         combined_rpvt_scores = pd.DataFrame()
-
-        for disease in tqdm(['CD']):
+        combined_svm_scores = pd.Series()
+        
+        for disease in tqdm(disease_IDs):
 
             queries = pd.read_csv(os.path.join(DATA_DIR, 'queries', '{}.txt'.format(disease)), delim_whitespace=True)
 
@@ -100,11 +107,17 @@ class TestPipeline(object):
 
             for chromo in tqdm(range(1, 23)):
                 pvalues = real_pvalues(disease, chromo)
+
                 raw_pvalues_genome += pvalues.tolist()
                 pvalues_104 = np.ones(pvalues.shape)
                 pvalues_104[pvalues < 1e-4] = pvalues[pvalues < 1e-4]
                 peaks_indices, _ = scipy.signal.find_peaks(-np.log10(pvalues_104), distance=150)
                 peaks_indices += offset
+
+                # BUGFIX for CAD
+                if disease=='CAD' and chromo != 9:
+                    pvalues[pvalues < 1e-6] = 1
+                    
                 offset += len(pvalues)
                 peaks_indices_genome += peaks_indices.tolist()
                 del pvalues, pvalues_104
@@ -139,6 +152,21 @@ class TestPipeline(object):
             pvalues_peak_labels.loc[np.intersect1d(candidates_raw_pvalues_genome_peaks.index, tp_df.index)] = 1
             combined_labels = pd.concat([combined_labels, pvalues_peak_labels])
 
+            # SVM WEIGHTS
+            raw_svm_scores = np.load(os.path.join(FINAL_RESULTS_DIR,'combi_raw_rm','{}.npy'.format(disease)))
+            processed_svm_scores = postprocess_weights(raw_svm_scores, real_top_k, filter_window_size, p_svm, real_p_pnorm_filter)
+            processed_svm_scores = pd.Series(data=processed_svm_scores[candidates_raw_pvalues_genome_peaks.index],
+                                            index=candidates_raw_pvalues_genome_peaks.index)
+            combined_svm_scores = pd.concat([combined_svm_scores, processed_svm_scores])
+
+            # DeepCombi WEIGHTS
+            raw_deepcombi_scores = np.load(os.path.join(FINAL_RESULTS_DIR,'deepcombi_raw_rm','{}.npy'.format(disease)))
+            processed_deepcombi_scores = postprocess_weights(raw_deepcombi_scores, real_top_k, filter_window_size, p_svm, real_p_pnorm_filter)
+            processed_deepcombi_scores = pd.Series(data=processed_deepcombi_scores[candidates_raw_pvalues_genome_peaks.index],
+                                            index=candidates_raw_pvalues_genome_peaks.index)
+            combined_deepcombi_scores = pd.concat([combined_deepcombi_scores, processed_deepcombi_scores])
+
+
             # COMBI
             selected_combi_indices = np.load(
                 os.path.join(FINAL_RESULTS_DIR, 'combi_selected_indices', '{}.npy'.format(disease))).flatten()
@@ -164,18 +192,29 @@ class TestPipeline(object):
             combined_rpvt_scores = pd.concat([combined_rpvt_scores, candidates_raw_pvalues_genome_peaks])
 
         # AUC stuff
-        combi_fpr, combi_tpr, thresholds = roc_curve(combined_labels.values,
+        svm_fpr, svm_tpr, _ = roc_curve(combined_labels.values,
+                                                     -np.log10(combined_svm_scores.values))
+        svm_tp = svm_tpr * (combined_labels.values == 1).sum()
+        svm_fp = svm_fpr * (combined_labels.values != 1).sum()
+
+        dc_rm_fpr, dc_rm_tpr, _ = roc_curve(combined_labels.values,
+                                                     -np.log10(combined_deepcombi_scores.values))
+        dc_rm_tp = dc_rm_tpr * (combined_labels.values == 1).sum()
+        dc_rm_fp = dc_rm_fpr * (combined_labels.values != 1).sum()
+
+
+        combi_fpr, combi_tpr, _ = roc_curve(combined_labels.values,
                                                      -np.log10(combined_combi_pvalues.values))
         combi_tp = combi_tpr * (combined_labels.values == 1).sum()
         combi_fp = combi_fpr * (combined_labels.values != 1).sum()
 
-        deepcombi_fpr, deepcombi_tpr, thresholds = roc_curve(
+        deepcombi_fpr, deepcombi_tpr, _ = roc_curve(
             combined_labels.values,
             -np.log10(combined_deepcombi_pvalues.values))
         deepcombi_tp = deepcombi_tpr * (combined_labels.values == 1).sum()
         deepcombi_fp = deepcombi_fpr * (combined_labels.values != 1).sum()
 
-        rpvt_fpr, rpvt_tpr, thresholds = roc_curve(combined_labels.values,
+        rpvt_fpr, rpvt_tpr, _ = roc_curve(combined_labels.values,
                                                    -np.log10(combined_rpvt_scores.pvalue.values))
         rpvt_tp = rpvt_tpr * (combined_labels.values == 1).sum()
         rpvt_fp = rpvt_fpr * (combined_labels.values != 1).sum()
@@ -184,6 +223,8 @@ class TestPipeline(object):
         plt.plot(deepcombi_fp, deepcombi_tp, label='deepcombi')
         plt.plot(combi_fp, combi_tp, label='combi')
         plt.plot(rpvt_fp, rpvt_tp, label='rpvt')
+        plt.plot(svm_fp, svm_tp, label='SVM weights')
+        plt.plot(dc_rm_fp, dc_rm_tp, label='SVM weights')
         plt.xlabel('FP')
         plt.ylabel('TP')
         plt.xlim(0,80)

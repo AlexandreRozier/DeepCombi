@@ -103,13 +103,13 @@ class TestLOTR(object):
 
 
     def test_hpsearch(self, real_h5py_data, real_labels_cat, real_idx):
-        """ Runs HP search for a subset of chromosomes (on CPU, high degree of paralellism.)
+        """ Runs HP search for a subset of chromosomes  
         """
         # Each node gets a set of chromosomes to process :D
         
-        chrom = int(os.environ['SGE_TASK_ID'])
+        disease = disease_IDs[int(os.environ['SGE_TASK_ID'])-1]
         
-        for disease in disease_IDs:
+        for chrom in range(1,23):
 
             # 1. Do hyperparam search on each chromosome and find parameters with BEST VAL ACCURAC
 
@@ -140,12 +140,14 @@ class TestLOTR(object):
 
             if nb_gpus == 1:
                 parallel_gpu_jobs(0.33)
+            
+            os.makedirs(os.path.join(FINAL_RESULTS_DIR,'talos',disease,str(chrom)), exist_ok=True)
 
             talos.Scan(x=fm[idx.train],
                     y=labels_cat[idx.train],
                     x_val=fm[idx.test],
                     y_val=labels_cat[idx.test],
-                    # reduction_method='correlation',
+                    reduction_method='gamify',
                     # reduction_interval=10,
                     # reduction_window=10,
                     # reduction_metric='val_acc',
@@ -153,7 +155,7 @@ class TestLOTR(object):
                     minimize_loss=False,
                     params=params_space,
                     model=talos_wrapper,
-                    experiment_name=os.path.join(FINAL_RESULTS_DIR,'talos',disease,str(chrom)))
+                    experiment_name='final_results/talos/'+disease+'/'+str(chrom))
 
     def test_permutations(self, real_h5py_data, real_labels, real_labels_0based, real_labels_cat, real_idx, alphas,
                           alphas_EV):
