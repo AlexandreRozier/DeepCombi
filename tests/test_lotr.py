@@ -103,12 +103,12 @@ class TestLOTR(object):
 
 
     def test_hpsearch(self, real_h5py_data, real_labels_cat, real_idx):
-        """ Runs HP search for a subset of chromosomes  
+        """ Runs HP search for a subset of chromosomes
         """
         # Each node gets a set of chromosomes to process :D
         
         disease = disease_IDs[int(os.environ['SGE_TASK_ID'])-1]
-        
+
         for chrom in range(1,23):
 
             # 1. Do hyperparam search on each chromosome and find parameters with BEST VAL ACCURAC
@@ -140,7 +140,7 @@ class TestLOTR(object):
 
             if nb_gpus == 1:
                 parallel_gpu_jobs(0.33)
-            
+
             os.makedirs(os.path.join(FINAL_RESULTS_DIR,'talos',disease,str(chrom)), exist_ok=True)
 
             talos.Scan(x=fm[idx.train],
@@ -208,7 +208,7 @@ class TestLOTR(object):
         print(svm_model.score(x[real_idx.test], real_labels[real_idx.test]))
 
     def test_parameters(self, real_h5py_data, real_labels_cat, real_idx):
-        
+
         data = real_h5py_data(3)
         fm = char_matrix_to_featmat(data, '3d', real_pnorm_feature_scaling)
 
@@ -292,9 +292,9 @@ class TestLOTR(object):
             model.save(filename)
             K.clear_session()
             del data, fm, model 
-       
 
-    def test_generate_plots(self, real_labels, real_h5py_data, real_pvalues):
+
+    def test_generate_plots(self, real_pvalues):
         """ Plot manhattan figures of rpvt VS deepcombi, for one specific disease 
         SGE_TASK_ID-1 : index of the disease processed by this node
         """
@@ -304,88 +304,72 @@ class TestLOTR(object):
         offsets = np.zeros(len(chromos) + 1, dtype=np.int)
         middle_offset_history = np.zeros(len(chromos), dtype=np.int)
 
-        labels = real_labels(disease_id)
 
-        chrom_fig, axes = plt.subplots(4, 1, sharex='col')
+        chrom_fig, axes = plt.subplots(3, 1, sharex='col')
         chrom_fig.set_size_inches(18.5, 10.5)
 
         raw_pvalues_ax = axes[0]
         c_selected_pvalues_ax = axes[1]
-        pp_rm_ax = axes[2]
-        deepc_selected_pvalues_ax = axes[3]
+        deepc_selected_pvalues_ax = axes[2]
 
+        top_indices_deepcombi = np.load(
+            os.path.join(FINAL_RESULTS_DIR, 'deepcombi_selected_indices', '{}.npy'.format(disease_id)))
+        top_indices_combi = np.load(
+            os.path.join(FINAL_RESULTS_DIR, 'combi_selected_indices', '{}.npy'.format(disease_id)))
+
+        complete_pvalues = []
+        n_snps = np.zeros(22)
         for i,chromo in enumerate(chromos):
 
-            data = real_h5py_data(disease_id, chromo)
-            x_2d = char_matrix_to_featmat(data, '2d', real_pnorm_feature_scaling)
-            x_3d = char_matrix_to_featmat(data, '3d', real_pnorm_feature_scaling)
-            offset = offsets[i]
-            n_snps = x_3d.shape[1]
-            offsets[i + 1] = offsets[i] + n_snps
-
-            middle_offset_history[i] = offsets[i] + int(n_snps / 2)
-
-            # Generate LRP-based RAW- and postprocessed-RM
-            model = load_model(
-                os.path.join(FINAL_RESULTS_DIR, 'trained_models', disease_id, 'model{}.h5'.format(chromo)))
-
-            for i, layer in enumerate(model.layers):
-                if layer.name == 'dense_1':
-                    layer.name = 'blu{}'.format(str(i))
-                if layer.name == 'dense_2':
-                    layer.name = 'bla{}'.format(str(i))
-                if layer.name == 'dense_3':
-                    layer.name = 'bleurg{}'.format(str(i))
-
-            model = iutils.keras.graph.model_wo_softmax(model)
-            analyzer = innvestigate.analyzer.LRPAlpha1Beta0(model)
-            deepcombi_rm = np.absolute(analyzer.analyze(x_3d).sum(0))
-            top_indices_deepcombi, pp_rm = postprocess_weights(deepcombi_rm, real_top_k, filter_window_size, p_svm,
-                                                                real_p_pnorm_filter)
-
-            # Generate RAW- and postprocessed-PV
             raw_pvalues = real_pvalues(disease_id, chromo)
 
+
             if disease_id == 'CAD' and chromo != 9:
-                raw_pvalues[-np.log10(raw_pvalues) > 6] = 1
+                raw_pvalues[raw_pvalues < 1e-6] = 1
 
-            top_indices_combi, _,_ = combi_method(data, x_2d, labels,
-                                                filter_window_size, real_p_pnorm_filter, p_svm, real_top_k)
+            complete_pvalues += raw_pvalues.tolist()
 
-            combi_selected_pvalues = np.ones(n_snps)
-            combi_selected_pvalues[top_indices_combi] = raw_pvalues[top_indices_combi]
+            n_snps[i] = len(raw_pvalues)
+            offsets[i + 1] = offsets[i] + n_snps[i]
+            middle_offset_history[i] = offsets[i] + int(n_snps[i] / 2)
 
-            deepcombi_selected_pvalues = np.ones(n_snps)
-            deepcombi_selected_pvalues[top_indices_deepcombi] = raw_pvalues[top_indices_deepcombi]
+        complete_pvalues = np.array(complete_pvalues).flatten()
 
-            # Plot stuff!
 
-            informative_idx = np.argwhere(raw_pvalues < 1e-5)
-            color = np.zeros((len(raw_pvalues), 3))
-            color[:] = [1, 0, 0] if (chromo % 2 == 0) else [0, 0, 1]
-            color[informative_idx] = [0, 1, 0]
-            raw_pvalues_ax.scatter(range(offset, offset + n_snps), -np.log10(raw_pvalues), c=color, marker='x')
-            deepc_selected_pvalues_ax.scatter(range(offset, offset + n_snps), -np.log10(deepcombi_selected_pvalues),
-                                                c=color, marker='x')
-            c_selected_pvalues_ax.scatter(range(offset, offset + n_snps), -np.log10(combi_selected_pvalues),
+        combi_selected_pvalues = np.ones(len(complete_pvalues))
+        combi_selected_pvalues[top_indices_combi] = complete_pvalues[top_indices_combi]
+
+        deepcombi_selected_pvalues = np.ones(len(complete_pvalues))
+        deepcombi_selected_pvalues[top_indices_deepcombi] = complete_pvalues[top_indices_deepcombi]
+
+
+        color = np.zeros((len(complete_pvalues), 3))
+        informative_idx = np.argwhere(complete_pvalues < 1e-5)
+
+        alt = True
+        for i,offset in enumerate(offsets[:-1]):
+            color[offset:offsets[i+1]] = [1, 0, 0] if alt else [0, 0, 1]
+            alt = not alt
+
+
+        color[informative_idx] = [0, 1, 0]
+        raw_pvalues_ax.scatter(range(len(complete_pvalues)),-np.log10(complete_pvalues), c=color, marker='x')
+        deepc_selected_pvalues_ax.scatter( range(len(complete_pvalues)),-np.log10(deepcombi_selected_pvalues),
                                             c=color, marker='x')
-            pp_rm_ax.scatter(range(offset, offset + n_snps), pp_rm, c=color, marker='x')
-            del data, x_2d, x_3d
+        c_selected_pvalues_ax.scatter(range(len(complete_pvalues)),-np.log10(combi_selected_pvalues),
+                                        c=color, marker='x')
 
 
 
         plt.setp(raw_pvalues_ax, xticks=middle_offset_history, xticklabels=range(1, 23))
         plt.setp(deepc_selected_pvalues_ax, xticks=middle_offset_history, xticklabels=range(1, 23))
         plt.setp(c_selected_pvalues_ax, xticks=middle_offset_history, xticklabels=range(1, 23))
-        plt.setp(pp_rm_ax, xticks=middle_offset_history, xticklabels=range(1, 23))
-
+        chrom_fig.canvas.set_window_title(disease_id)
         raw_pvalues_ax.set_title('Raw p-values')
-        pp_rm_ax.set_title('DeepCOMBI-posprocessed')
         deepc_selected_pvalues_ax.set_title('PValues preselected by DeepCOMBI')
         c_selected_pvalues_ax.set_title('PValues preselected by COMBI')
 
         deepc_selected_pvalues_ax.set_xlabel('Chromosome')
-        pp_rm_ax.set_ylim(bottom=0.0)
 
         chrom_fig.savefig(os.path.join(FINAL_RESULTS_DIR, 'plots', '{}-manhattan.png'.format(disease_id)))
 

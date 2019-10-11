@@ -19,7 +19,7 @@ class TestPipeline(object):
     def test_save_combi_accuracies(self, real_labels,real_idx, real_h5py_data):
         for disease in tqdm(disease_IDs):
             scores = []
-            for chrom in tqdm(range(1,23)):   
+            for chrom in tqdm(range(1,23)):
                 data = real_h5py_data(disease, chrom)
                 fm = char_matrix_to_featmat(data, '2d', real_pnorm_feature_scaling)
                 labels = real_labels(disease)
@@ -36,7 +36,7 @@ class TestPipeline(object):
         disease = disease_IDs[int(os.environ['SGE_TASK_ID'])-1]
         offset = 0
         selected_indices = []
-        total_raw_rm = []
+        total_raw_rm = np.empty((0,3))
 
         for chromo in tqdm(range(1,23)):
 
@@ -49,7 +49,7 @@ class TestPipeline(object):
             indices = offset + idx
             selected_indices += indices.tolist()
             offset += fm_3D.shape[1]
-            total_raw_rm += raw_rm.tolist()
+            total_raw_rm = np.append(total_raw_rm, raw_rm, axis=0)
 
             del data, fm_2D, fm_3D
 
@@ -66,7 +66,7 @@ class TestPipeline(object):
         disease = disease_IDs[int(os.environ['SGE_TASK_ID'])-1]
         offset = 0
         selected_indices = []
-        total_raw_rm = []
+        total_raw_rm = np.empty((0,3))
         for chromo in tqdm(range(1,23)):
             model = load_model(os.path.join(FINAL_RESULTS_DIR, 'trained_models', disease, 'model{}.h5'.format(chromo)))
 
@@ -76,7 +76,7 @@ class TestPipeline(object):
             idx,_, raw_rm = deepcombi_method(model, data, fm, labels, filter_window_size, real_p_pnorm_filter,
                                                 p_svm, top_k=real_top_k)
             indices = offset + idx
-            total_raw_rm += raw_rm.tolist()
+            total_raw_rm = np.append(total_raw_rm, raw_rm, axis=0)
             selected_indices += indices.tolist()
             offset += fm.shape[1]
             del data, fm, model
@@ -95,7 +95,8 @@ class TestPipeline(object):
         combined_deepcombi_pvalues = pd.DataFrame()
         combined_rpvt_scores = pd.DataFrame()
         combined_svm_scores = pd.Series()
-        
+        combined_deepcombi_scores = pd.Series()
+
         for disease in tqdm(disease_IDs):
 
             queries = pd.read_csv(os.path.join(DATA_DIR, 'queries', '{}.txt'.format(disease)), delim_whitespace=True)
@@ -108,17 +109,17 @@ class TestPipeline(object):
             for chromo in tqdm(range(1, 23)):
                 pvalues = real_pvalues(disease, chromo)
 
-                raw_pvalues_genome += pvalues.tolist()
                 pvalues_104 = np.ones(pvalues.shape)
                 pvalues_104[pvalues < 1e-4] = pvalues[pvalues < 1e-4]
                 peaks_indices, _ = scipy.signal.find_peaks(-np.log10(pvalues_104), distance=150)
                 peaks_indices += offset
 
                 # BUGFIX for CAD
-                if disease=='CAD' and chromo != 9:
+                if disease == 'CAD' and chromo != 9:
                     pvalues[pvalues < 1e-6] = 1
-                    
+
                 offset += len(pvalues)
+                raw_pvalues_genome += pvalues.tolist()
                 peaks_indices_genome += peaks_indices.tolist()
                 del pvalues, pvalues_104
 
@@ -180,7 +181,7 @@ class TestPipeline(object):
 
             # DeepCombi
             selected_deepcombi_indices = np.load(
-                os.path.join(FINAL_RESULTS_DIR, 'selected_indices', '{}.npy'.format(disease))).flatten()
+                os.path.join(FINAL_RESULTS_DIR, 'deepcombi_selected_indices', '{}.npy'.format(disease))).flatten()
             selected_deepcombi_pvalues = pd.Series(data=np.ones(len(candidates_raw_pvalues_genome_peaks.index)),
                                                    index=candidates_raw_pvalues_genome_peaks.index)  # Build a all ones pvalues series
             idx = np.intersect1d(selected_deepcombi_indices, candidates_raw_pvalues_genome_peaks.index)
