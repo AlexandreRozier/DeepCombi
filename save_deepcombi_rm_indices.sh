@@ -6,7 +6,7 @@ source ~/.bashrc
 
 echo "Bootstraping..."
 
-ROOT_DIR=$PWD python -m pytest -s tests/test_pipeline.py::TestPipeline::test_save_deepcombi_indices
+ROOT_DIR=$PWD python -m pytest -s tests/test_pipeline.py::TestPipeline::test_save_deepcombi_rm_and_indices
 
 
 echo "Over."

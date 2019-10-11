@@ -255,7 +255,7 @@ class TestDeepCOMBI(object):
 
         def combi_compute_pvalues(d, x, l):
 
-            idx, pvalues = combi_method(d, x, l,
+            idx, pvalues, _ = combi_method(d, x, l,
                                         filter_window_size, top_k)
             pvalues_filled = np.ones(n_total_snps)
             pvalues_filled[idx] = pvalues

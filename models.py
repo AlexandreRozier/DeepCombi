@@ -571,6 +571,7 @@ class DataGenerator(keras.utils.Sequence):
             y=keras.utils.to_categorical(y, num_classes=2)
         return X, y
 
+    
 
 class ConvDenseRLRonP(ReduceLROnPlateau):
 

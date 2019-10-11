@@ -33,14 +33,14 @@ def combi_method(data, fm, labels, filter_window_size, pnorm_filter, psvm, top_k
     
     # SVM Step to select the most k promising SNPs
     toy_classifier.fit(fm, labels)
-    weights = toy_classifier.coef_[0] # n_snps * 3
+    raw_weights = toy_classifier.coef_[0] # n_snps * 3
     
-    top_indices_sorted, _ = postprocess_weights(weights,top_k, filter_window_size, psvm, pnorm_filter)
+    top_indices_sorted, _ = postprocess_weights(raw_weights,top_k, filter_window_size, psvm, pnorm_filter)
     
     # For those SNPs, compute p-values on the second half of the data
     pvalues = chi_square(data[:,top_indices_sorted], labels)
 
-    return top_indices_sorted, pvalues
+    return top_indices_sorted, pvalues, raw_weights
 
 
 def deepcombi_method(model, data, fm, labels, filter_window_size, pnorm_filter, psvm, top_k):
@@ -55,13 +55,13 @@ def deepcombi_method(model, data, fm, labels, filter_window_size, pnorm_filter, 
 
     model = iutils.keras.graph.model_wo_softmax(model)
     analyzer = innvestigate.analyzer.LRPAlpha1Beta0(model)
-    weights = analyzer.analyze(fm).sum(0)
+    raw_weights = analyzer.analyze(fm).sum(0)
     
-    top_indices_sorted,_ = postprocess_weights(weights, top_k, filter_window_size, psvm, pnorm_filter)
+    top_indices_sorted,_ = postprocess_weights(raw_weights, top_k, filter_window_size, psvm, pnorm_filter)
     
     pvalues = chi_square(data[:,top_indices_sorted], labels)
 
-    return top_indices_sorted, pvalues
+    return top_indices_sorted, pvalues, raw_weights
 
 
 
@@ -69,7 +69,7 @@ def permuted_combi_method(data, fm, labels, filter_window_size, pnorm_filter, ps
 
     def f():
         permuted_labels = random_state.permutation(labels)
-        _, pvalues = combi_method(data, fm, permuted_labels, filter_window_size, pnorm_filter, psvm, top_k)
+        _, pvalues,_ = combi_method(data, fm, permuted_labels, filter_window_size, pnorm_filter, psvm, top_k)
         return  pvalues.min()
     
     min_pvalues = Parallel(n_jobs=-1, require='sharedmem')(delayed(f)() for i in tqdm(range(n_permutations)))
@@ -85,7 +85,7 @@ def permuted_deepcombi_method(model, data, fm, labels, labels_cat, filter_window
     def f():
         permuted_labels = random_state.permutation(labels)
         permuted_labels_cat = to_categorical((permuted_labels+1)/2)
-        _, pvalues = deepcombi_method(model, data, fm, permuted_labels, filter_window_size, pnorm_filter, psvm, top_k)
+        _, pvalues, _ = deepcombi_method(model, data, fm, permuted_labels, filter_window_size, pnorm_filter, psvm, top_k)
         if mode=='min':
             return  np.array(pvalues.min())
         elif mode=='all':

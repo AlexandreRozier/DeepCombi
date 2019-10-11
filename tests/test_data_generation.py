@@ -98,6 +98,22 @@ class TestDataGeneration(object):
                 del data, pvalues
                 
 
+    def test_mat_preprocessing(self):
+
+        for disease in disease_IDs:
+            for i in tqdm(range(1,23)):
+                with h5py.File(os.path.join(DATA_DIR,disease,'chromo_{}.mat'.format(i)), 'r') as f:
+                    chrom = np.array(f.get('X')).T
+                    assert chrom.shape[1] > chrom.shape[0]
+                    
+                    chrom_2 = chrom.reshape(chrom.shape[0], -1, 3)[:, :, :2]
+                    
+                    scipy.io.savemat(os.path.join(DATA_DIR,disease,'chromo_{}_processed.mat'.format(i)), 
+                        {'X':chrom_2}, 
+                        appendmat=False)
+                    del chrom, chrom_2
+                    
+
     def test_real_labels(self, real_labels):
         for disease_id in tqdm(disease_IDs):
             labels = real_labels(disease_id)

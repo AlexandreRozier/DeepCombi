@@ -71,7 +71,7 @@ class TestCombi(object):
     def test_combi(self,h5py_data, labels):
         h5py_data = h5py_data['0'][:]
         labels = labels['0']
-        top_indices_sorted, pvalues = combi_method(h5py_data, fm, labels,
+        top_indices_sorted, pvalues, _ = combi_method(h5py_data, fm, labels,
                                 filter_window_size, top_k)
         print('PVALUES CHOSEN: {}'.format(top_indices_sorted))
 
@@ -90,7 +90,7 @@ class TestCombi(object):
         
         complete_pvalues = chi_square(b_data, b_labels)
 
-        top_indices_sorted, top_pvalues = combi_method(b_data, b_labels,
+        top_indices_sorted, top_pvalues,_ = combi_method(b_data, b_labels,
                             filter_window_size, top_k)
         plot_pvalues(complete_pvalues, top_indices_sorted,top_pvalues, axes[0])
         axes[0].legend(["Matlab-generated data; Ttbr={}".format(6)])
@@ -101,7 +101,7 @@ class TestCombi(object):
 
             complete_pvalues = chi_square(h5py_data, labels)
 
-            top_indices_sorted, top_pvalues = combi_method(h5py_data, labels,
+            top_indices_sorted, top_pvalues,_ = combi_method(h5py_data, labels,
                                 filter_window_size, top_k)
             plot_pvalues(complete_pvalues, top_indices_sorted, top_pvalues, axes[i+1])
             axes[i+1].legend(["Python-generated data; ttbr={}".format(ttbr)])
@@ -123,7 +123,7 @@ class TestCombi(object):
             data = h5py_data[key][:]
             complete_pvalues = chi_square(data, labels[key])
 
-            top_indices_sorted, top_pvalues = combi_method(data, labels[key],
+            top_indices_sorted, top_pvalues,_ = combi_method(data, labels[key],
                                 filter_window_size, top_k)
             plot_pvalues(complete_pvalues, top_indices_sorted, top_pvalues, axes[i])
         fig.savefig(os.path.join(IMG_DIR,'combi_multiple_runs.png'), dpi=100)
@@ -149,7 +149,7 @@ class TestCombi(object):
         true_pvalues[:,int(noise_snps/2):int(noise_snps/2)+inform_snps] = True
 
         def p_compute_pvalues(data, labels):
-            indices, pvalues = combi_method(data, labels,
+            indices, pvalues,_ = combi_method(data, labels,
                                 filter_window_size, top_k)
             pvalues_filled = np.ones(n_total_snps)
             pvalues_filled[indices] = pvalues
@@ -202,7 +202,7 @@ class TestCombi(object):
             
             def f(data, labels):
     
-                indices, pvalues = combi_method(data, labels,
+                indices, pvalues, _ = combi_method(data, labels,
                                     filter_window_size, k)
                 pvalues_filled = np.ones(n_total_snps)
                 pvalues_filled[indices] = pvalues
@@ -234,7 +234,7 @@ class TestCombi(object):
         min_pvalues = np.zeros(n_permutations)
         for i in tqdm(range(n_permutations)):
             permuted_labels = random_state.permutation(labels)
-            _, pvalues = combi_method(h5py_data, fm, permuted_labels, filter_window_size, top_k)
+            _, pvalues,_ = combi_method(h5py_data, fm, permuted_labels, filter_window_size, top_k)
             min_pvalues[i] = pvalues.min()
         t_star = np.quantile(min_pvalues, alpha_sig_toy)
         print('Sequential time: {} s'.format(time.time()-start_time))
@@ -259,7 +259,7 @@ class TestCombi(object):
         
         def f(data, labels):
     
-            indices, pvalues = combi_method(data, labels,
+            indices, pvalues, _ = combi_method(data, labels,
                                 filter_window_size, top_k)
             pvalues_filled = np.ones(n_total_snps)
             pvalues_filled[indices] = pvalues

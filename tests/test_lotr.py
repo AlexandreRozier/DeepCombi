@@ -8,7 +8,7 @@ import pickle
 import numpy as np
 import tensorflow
 from models import create_montaez_dense_model_2, best_params_montaez_2
-from keras.callbacks import TensorBoard, ReduceLROnPlateau
+from keras.callbacks import TensorBoard, ReduceLROnPlateau, CSVLogger
 from helpers import char_matrix_to_featmat, postprocess_weights, get_available_gpus
 from parameters_complete import FINAL_RESULTS_DIR, IMG_DIR, real_pnorm_feature_scaling, real_p_pnorm_filter, filter_window_size, real_top_k, p_svm
 from parameters_complete import disease_IDs
@@ -100,58 +100,60 @@ class TestLOTR(object):
         print("Train: Cases:{};  Controls:{}".format((train_labels > 0.5).sum(), (train_labels < 0.5).sum()))
         print("Test: Cases:{};  Controls:{}".format((test_labels > 0.5).sum(), (test_labels < 0.5).sum()))
 
-    def test_train_networks(self, real_h5py_data, real_labels, real_labels_0based, real_labels_cat, real_idx):
+
+
+    def test_hpsearch(self, real_h5py_data, real_labels_cat, real_idx):
         """ Runs HP search for a subset of chromosomes (on CPU, high degree of paralellism.)
         """
         # Each node gets a set of chromosomes to process :D
-
+        
         chrom = int(os.environ['SGE_TASK_ID'])
-        print('loading..')
+        
+        for disease in disease_IDs:
 
-        # 1. Do hyperparam search on each chromosome and find parameters with BEST VAL ACCURAC
+            # 1. Do hyperparam search on each chromosome and find parameters with BEST VAL ACCURAC
 
-        data = real_h5py_data(chrom)
-        fm = char_matrix_to_featmat(data, '3d',real_pnorm_feature_scaling)
+            data = real_h5py_data(disease, chrom)
+            fm = char_matrix_to_featmat(data, '3d',real_pnorm_feature_scaling)
+            labels_cat = real_labels_cat(disease)
+            idx = real_idx(disease)
+            params_space = {
+                'n_snps': [fm.shape[1]],
+                'epochs': [400],
+                'dropout_rate': [0.3],
+                'l1_reg': list(np.logspace(-6, -2, 5)),
+                'l2_reg': [0],
+                'hidden_neurons': [3, 6, 10],
+                'lr': list(np.logspace(-4, -2, 3)),
+            }
 
-        print('loaded')
+            def talos_wrapper(x, y, x_val, y_val, params):
+                model = create_montaez_dense_model_2(params)
+                out = model.fit(x=x,
+                                y=y,
+                                validation_data=(x_val, y_val),
+                                epochs=params['epochs'],
+                                verbose=0)
+                return out, model
 
-        params_space = {
-            'n_snps': [fm.shape[1]],
-            'epochs': [800],
-            'dropout_rate': [0.3],
-            'l1_reg': list(np.logspace(-7, -2, 6)),
-            'l2_reg': [0],
-            'hidden_neurons': [3, 6, 10],
-            'lr': list(np.logspace(-4, -1, 4)),
-        }
+            nb_gpus = get_available_gpus()
 
-        def talos_wrapper(x, y, x_val, y_val, params):
-            model = create_montaez_dense_model_2(params)
-            out = model.fit(x=x,
-                            y=y,
-                            validation_data=(x_val, y_val),
-                            epochs=params['epochs']
-                            )
-            return out, model
+            if nb_gpus == 1:
+                parallel_gpu_jobs(0.33)
 
-        nb_gpus = get_available_gpus()
-
-        if nb_gpus == 1:
-            parallel_gpu_jobs(0.33)
-
-        talos.Scan(x=fm[real_idx.train],
-                   y=real_labels_cat[real_idx.train],
-                   x_val=fm[real_idx.test],
-                   y_val=real_labels_cat[real_idx.test],
-                   # reduction_method='correlation',
-                   # reduction_interval=10,
-                   # reduction_window=10,
-                   # reduction_metric='val_acc',
-                   # reduction_threshold=0.2,
-                   minimize_loss=False,
-                   params=params_space,
-                   model=talos_wrapper,
-                   experiment_name='talos_chrom_{}'.format(chrom))
+            talos.Scan(x=fm[idx.train],
+                    y=labels_cat[idx.train],
+                    x_val=fm[idx.test],
+                    y_val=labels_cat[idx.test],
+                    # reduction_method='correlation',
+                    # reduction_interval=10,
+                    # reduction_window=10,
+                    # reduction_metric='val_acc',
+                    # reduction_threshold=0.2,
+                    minimize_loss=False,
+                    params=params_space,
+                    model=talos_wrapper,
+                    experiment_name=os.path.join(FINAL_RESULTS_DIR,'talos',disease,str(chrom)))
 
     def test_permutations(self, real_h5py_data, real_labels, real_labels_0based, real_labels_cat, real_idx, alphas,
                           alphas_EV):
@@ -204,7 +206,7 @@ class TestLOTR(object):
         print(svm_model.score(x[real_idx.test], real_labels[real_idx.test]))
 
     def test_parameters(self, real_h5py_data, real_labels_cat, real_idx):
-
+        
         data = real_h5py_data(3)
         fm = char_matrix_to_featmat(data, '3d', real_pnorm_feature_scaling)
 
@@ -273,18 +275,14 @@ class TestLOTR(object):
 
             idx = real_idx(disease_id)
             # Train 
+
             model = create_montaez_dense_model_2(hp)
             model.fit(x=fm[idx.train],
                         y=labels_cat[idx.train],
                         validation_data=(fm[idx.test], labels_cat[idx.test]),
                         epochs=hp['epochs'],
                         callbacks=[
-                            TensorBoard(
-                                log_dir=os.path.join(FINAL_RESULTS_DIR, 'tb', disease_id, 'chrom{}'.format(chrom)),
-                                histogram_freq=10,
-                                write_graph=False,
-                                write_grads=False,
-                                write_images=False)
+                            CSVLogger(os.path.join(FINAL_RESULTS_DIR, 'csv_logs', disease_id, '{}'.format(chrom)))
                         ],
                         verbose=0)
             filename = os.path.join(FINAL_RESULTS_DIR, 'trained_models', disease_id, 'model{}.h5'.format(chrom))
@@ -293,24 +291,6 @@ class TestLOTR(object):
             K.clear_session()
             del data, fm, model 
        
-    def test_plot_all_pvalues(self, real_h5py_data, real_pvalues, real_labels, alphas):
-
-        fig, axes = plt.subplots(1, 1)
-        fig.set_size_inches(18.5, 10.5)
-        axes.axhline(y=5)
-        idx = 0
-        for i in tqdm(range(1, 22)):
-            h5py_data = real_h5py_data(i)
-            complete_pvalues = real_pvalues(h5py_data, real_labels)
-            informative_idx = np.argwhere(complete_pvalues < 1e-5)
-            color = np.zeros((len(complete_pvalues), 3))
-            color[:] = [255 * (i % 2 == 0), 0, 255 * (i % 2 != 0)]
-            color[informative_idx] = [0, 255, 0]
-
-            axes.scatter(range(idx, idx + len(complete_pvalues)), -np.log10(complete_pvalues), c=color / 255.0,
-                         marker='x')
-            idx += len(complete_pvalues)
-        fig.savefig(os.path.join(IMG_DIR, 'genome-wide-pvalues.png'))
 
     def test_generate_plots(self, real_labels, real_h5py_data, real_pvalues):
         """ Plot manhattan figures of rpvt VS deepcombi, for one specific disease 
@@ -334,8 +314,6 @@ class TestLOTR(object):
 
         for i,chromo in enumerate(chromos):
 
-            # t_star = pickle.load(open(os.path.join(FINAL_RESULTS_DIR,disease,'chrom{}-t_star.p'.format(chrom)),'rb'))
-            # t_star_EV = pickle.load(open(os.path.join(FINAL_RESULTS_DIR,disease,'chrom{}-t_star_EV.p'.format(chrom)),'rb'))
             data = real_h5py_data(disease_id, chromo)
             x_2d = char_matrix_to_featmat(data, '2d', real_pnorm_feature_scaling)
             x_3d = char_matrix_to_featmat(data, '3d', real_pnorm_feature_scaling)
@@ -369,7 +347,7 @@ class TestLOTR(object):
             if disease_id == 'CAD' and chromo != 9:
                 raw_pvalues[-np.log10(raw_pvalues) > 6] = 1
 
-            top_indices_combi, _ = combi_method(data, x_2d, labels,
+            top_indices_combi, _,_ = combi_method(data, x_2d, labels,
                                                 filter_window_size, real_p_pnorm_filter, p_svm, real_top_k)
 
             combi_selected_pvalues = np.ones(n_snps)
