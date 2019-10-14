@@ -10,63 +10,55 @@ from parameters_complete import IMG_DIR, DATA_DIR,FINAL_RESULTS_DIR, real_pnorm_
 from models import create_montaez_dense_model_2
 from keras.models import load_model
 from sklearn.metrics import roc_curve, precision_recall_curve
+
 import matplotlib
 matplotlib.use('Qt5Agg')
 from matplotlib import pyplot as plt
 
 class TestPipeline(object):
 
-    def test_save_combi_accuracies(self, real_labels,real_idx, real_h5py_data):
-        for disease in tqdm(disease_IDs):
-            scores = []
-            for chrom in tqdm(range(1,23)):
-                data = real_h5py_data(disease, chrom)
-                fm = char_matrix_to_featmat(data, '2d', real_pnorm_feature_scaling)
-                labels = real_labels(disease)
-                idx = real_idx(disease)
-                real_classifier.fit(fm[idx.train], labels[idx.train])
-                scores.append(real_classifier.score(fm[idx.test], labels[idx.test]))
-                del data, fm
-            np.save(os.path.join(FINAL_RESULTS_DIR, 'accuracies',disease,'combi'), scores)
-        
+    
     def test_save_deepcombi_accuracies(self):
         for disease in tqdm(disease_IDs):
             scores = []
             for chrom in tqdm(range(1, 23)):
                 data = pd.read_csv(os.path.join(FINAL_RESULTS_DIR,'csv_logs',disease,str(chrom)))
-                scores += data.tail(1)['val_acc'].values
-
+                scores += data.tail(1)['val_acc'].values.tolist()
             np.save(os.path.join(FINAL_RESULTS_DIR, 'accuracies', disease, 'deepcombi'), scores)
 
-
-    def test_save_combi_rm_and_indices(self, real_h5py_data, real_labels):
+    def test_save_combi_scores_rm_and_indices(self, real_h5py_data, real_labels, real_idx):
         """ Extract indices gotten from combi
         """
         disease = disease_IDs[int(os.environ['SGE_TASK_ID'])-1]
         offset = 0
         selected_indices = []
         total_raw_rm = np.empty((0,3))
+        scores = []
+        idx = real_idx(disease)
+        labels = real_labels(disease)
 
         for chromo in tqdm(range(1,23)):
 
             data = real_h5py_data(disease, chromo)
             fm_2D = char_matrix_to_featmat(data, '2d', real_pnorm_feature_scaling)
-            fm_3D = char_matrix_to_featmat(data, '3d', real_pnorm_feature_scaling)
-            labels = real_labels(disease)
-            idx, _, raw_rm = combi_method(data, fm_2D, labels, filter_window_size, real_p_pnorm_filter,
+            selected_idx, _, raw_rm = combi_method(real_classifier, data[idx.train], fm_2D[idx.train], labels[idx.train], filter_window_size, real_p_pnorm_filter,
                                                 p_svm, top_k=real_top_k)
-            indices = offset + idx
+            real_classifier.fit(fm_2D[idx.train], labels[idx.train])
+            scores.append(real_classifier.score(fm_2D[idx.test], labels[idx.test]))
+               
+            indices = offset + selected_idx
             selected_indices += indices.tolist()
-            offset += fm_3D.shape[1]
+            offset += int(fm_2D.shape[1]/3)
             total_raw_rm = np.append(total_raw_rm, raw_rm, axis=0)
 
-            del data, fm_2D, fm_3D
+            del data, fm_2D
 
         os.makedirs(os.path.join(FINAL_RESULTS_DIR, 'combi_selected_indices' ), exist_ok=True)
         os.makedirs(os.path.join(FINAL_RESULTS_DIR, 'combi_raw_rm' ), exist_ok=True)
 
         np.save(os.path.join(FINAL_RESULTS_DIR, 'combi_selected_indices', disease), selected_indices)
         np.save(os.path.join(FINAL_RESULTS_DIR, 'combi_raw_rm', disease ), total_raw_rm)
+        np.save(os.path.join(FINAL_RESULTS_DIR, 'accuracies',disease,'combi'), scores)
 
 
     def test_save_deepcombi_rm_and_indices(self, real_h5py_data, real_labels):
@@ -267,3 +259,12 @@ class TestPipeline(object):
 
         plt.legend()
         fig.savefig(os.path.join(FINAL_RESULTS_DIR, 'plots', 'precision-tp.png'))
+
+
+    def test_print_accuracies(self):
+        for disease in disease_IDs:
+            combi_acc = np.load(os.path.join(FINAL_RESULTS_DIR, 'accuracies',disease,'combi.npy'))            
+            dc_acc = np.load(os.path.join(FINAL_RESULTS_DIR, 'accuracies',disease,'deepcombi.npy'))
+            print(disease)
+            print('COMBI val_acc: {}'.format(combi_acc))            
+            print('DeepCOMBI val_acc: {}'.format(dc_acc))

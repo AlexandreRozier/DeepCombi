@@ -192,7 +192,7 @@ class TestLOTR(object):
                       ],
                       verbose=1)
 
-        t_star = permuted_deepcombi_method(model, hp, data, fm, real_labels, real_labels_cat, n_permutations, alpha_sig,
+        t_star = permuted_deepcombi_method(real_classifier, model, hp, data, fm, real_labels, real_labels_cat, n_permutations, alpha_sig,
                                             filter_window_size, real_top_k, mode='min')
         t_star_EV = permuted_deepcombi_method(model, hp, data, fm, real_labels, real_labels_cat, n_permutations,
                                               alpha_sig_EV, filter_window_size, real_top_k,
@@ -261,40 +261,44 @@ class TestLOTR(object):
     def test_train_models_with_best_params(self, real_h5py_data, real_labels_cat, real_idx):
         """ Generate a per-chromosom trained model for futur LRP-mapping quality assessment
         """
+        candidates = []
+        for disease_id in disease_IDs:
+            for chrom in range(1,23):
+                candidates.append([disease_id, chrom])
         
-        chrom = int(os.environ['SGE_TASK_ID'])
+        idx = int(os.environ['SGE_TASK_ID'])-1
+        disease_id, chrom = candidates[idx]
 
-        for disease_id in tqdm(disease_IDs):
 
-            # Load data, hp & labels
-            data = real_h5py_data(disease_id, chrom)
-            fm = char_matrix_to_featmat(data, '3d', real_pnorm_feature_scaling)
+        # Load data, hp & labels
+        data = real_h5py_data(disease_id, chrom)
+        fm = char_matrix_to_featmat(data, '3d', real_pnorm_feature_scaling)
 
-            labels_cat = real_labels_cat(disease_id)
+        labels_cat = real_labels_cat(disease_id)
 
-            hp = pickle.load(open(os.path.join(FINAL_RESULTS_DIR, 'hyperparams', disease_id, 'chrom{}.p'.format(chrom)), 'rb'))
-            hp['epochs'] = int(hp['epochs']) #TODO remove me
-            print(hp)
+        hp = pickle.load(open(os.path.join(FINAL_RESULTS_DIR, 'hyperparams', disease_id, 'chrom{}.p'.format(chrom)), 'rb'))
+        hp['epochs'] = int(hp['epochs']) #TODO remove me
+        print(hp)
 
-            idx = real_idx(disease_id)
-            # Train 
+        idx = real_idx(disease_id)
+        # Train 
 
-            os.makedirs(os.path.join(FINAL_RESULTS_DIR, 'csv_logs', disease_id), exist_ok=True)
+        os.makedirs(os.path.join(FINAL_RESULTS_DIR, 'csv_logs', disease_id), exist_ok=True)
 
-            model = create_montaez_dense_model_2(hp)
-            model.fit(x=fm[idx.train],
-                        y=labels_cat[idx.train],
-                        validation_data=(fm[idx.test], labels_cat[idx.test]),
-                        epochs=hp['epochs'],
-                        callbacks=[
-                            CSVLogger(os.path.join(FINAL_RESULTS_DIR, 'csv_logs', disease_id, '{}'.format(chrom)))
-                        ],
-                        verbose=0)
-            filename = os.path.join(FINAL_RESULTS_DIR, 'trained_models', disease_id, 'model{}.h5'.format(chrom))
-            os.makedirs(os.path.dirname(filename), exist_ok=True)
-            model.save(filename)
-            K.clear_session()
-            del data, fm, model 
+        model = create_montaez_dense_model_2(hp)
+        model.fit(x=fm[idx.train],
+                    y=labels_cat[idx.train],
+                    validation_data=(fm[idx.test], labels_cat[idx.test]),
+                    epochs=hp['epochs'],
+                    callbacks=[
+                        CSVLogger(os.path.join(FINAL_RESULTS_DIR, 'csv_logs', disease_id, '{}'.format(chrom)))
+                    ],
+                    verbose=0)
+        filename = os.path.join(FINAL_RESULTS_DIR, 'trained_models', disease_id, 'model{}.h5'.format(chrom))
+        os.makedirs(os.path.dirname(filename), exist_ok=True)
+        model.save(filename)
+        K.clear_session()
+        del data, fm, model 
 
 
     def test_generate_plots(self, real_pvalues):

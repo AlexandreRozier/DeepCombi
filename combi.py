@@ -9,7 +9,7 @@ from tqdm import tqdm
 import math
 import os 
 from sklearn.preprocessing import StandardScaler
-from helpers import moving_average, chi_square, h5py_to_featmat, postprocess_weights
+from helpers import moving_average, chi_square, h5py_to_featmat, postprocess_weights, po
 from parameters_complete import TEST_DIR, svm_epsilon, Cs, real_Cs, n_total_snps, random_state
 from joblib import Parallel, delayed
 import tensorflow
@@ -22,7 +22,7 @@ real_classifier = svm.LinearSVC(C=real_Cs, penalty='l2', tol=svm_epsilon, verbos
 
 
 
-def combi_method(data, fm, labels, filter_window_size, pnorm_filter, psvm, top_k):
+def combi_method(classifier,data, fm, labels, filter_window_size, pnorm_filter, psvm, top_k):
     """
     data: (n, n_snps, 2) SNPs-to-person matrix
     labels: (n)
@@ -32,10 +32,10 @@ def combi_method(data, fm, labels, filter_window_size, pnorm_filter, psvm, top_k
     """
     
     # SVM Step to select the most k promising SNPs
-    toy_classifier.fit(fm, labels)
-    raw_weights = toy_classifier.coef_[0] # n_snps * 3
+    classifier.fit(fm, labels)
+    raw_weights = classifier.coef_[0] # n_snps * 3
     
-    top_indices_sorted, _ = postprocess_weights(raw_weights,top_k, filter_window_size, psvm, pnorm_filter)
+    top_indices_sorted, _ = postprocess_weights_without(raw_weights,top_k, filter_window_size, psvm, pnorm_filter)
     
     # For those SNPs, compute p-values on the second half of the data
     pvalues = chi_square(data[:,top_indices_sorted], labels)
@@ -69,7 +69,7 @@ def permuted_combi_method(data, fm, labels, filter_window_size, pnorm_filter, ps
 
     def f():
         permuted_labels = random_state.permutation(labels)
-        _, pvalues,_ = combi_method(data, fm, permuted_labels, filter_window_size, pnorm_filter, psvm, top_k)
+        _, pvalues,_ = combi_method(classifier, data,  fm, permuted_labels, filter_window_size, pnorm_filter, psvm, top_k)
         return  pvalues.min()
     
     min_pvalues = Parallel(n_jobs=-1, require='sharedmem')(delayed(f)() for i in tqdm(range(n_permutations)))
