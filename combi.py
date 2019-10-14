@@ -40,7 +40,7 @@ def combi_method(data, fm, labels, filter_window_size, pnorm_filter, psvm, top_k
     # For those SNPs, compute p-values on the second half of the data
     pvalues = chi_square(data[:,top_indices_sorted], labels)
 
-    return top_indices_sorted, pvalues, raw_weights
+    return top_indices_sorted, pvalues, raw_weights.reshape(-1, 3)
 
 
 def deepcombi_method(model, data, fm, labels, filter_window_size, pnorm_filter, psvm, top_k):

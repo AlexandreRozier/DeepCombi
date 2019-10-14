@@ -261,9 +261,10 @@ class TestLOTR(object):
     def test_train_models_with_best_params(self, real_h5py_data, real_labels_cat, real_idx):
         """ Generate a per-chromosom trained model for futur LRP-mapping quality assessment
         """
+        
         chrom = int(os.environ['SGE_TASK_ID'])
 
-        for disease_id in ['T1D','T2D']:#tqdm(disease_IDs):
+        for disease_id in tqdm(disease_IDs):
 
             # Load data, hp & labels
             data = real_h5py_data(disease_id, chrom)
@@ -277,6 +278,8 @@ class TestLOTR(object):
 
             idx = real_idx(disease_id)
             # Train 
+
+            os.makedirs(os.path.join(FINAL_RESULTS_DIR, 'csv_logs', disease_id), exist_ok=True)
 
             model = create_montaez_dense_model_2(hp)
             model.fit(x=fm[idx.train],

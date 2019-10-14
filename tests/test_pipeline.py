@@ -29,6 +29,15 @@ class TestPipeline(object):
                 del data, fm
             np.save(os.path.join(FINAL_RESULTS_DIR, 'accuracies',disease,'combi'), scores)
         
+    def test_save_deepcombi_accuracies(self):
+        for disease in tqdm(disease_IDs):
+            scores = []
+            for chrom in tqdm(range(1, 23)):
+                data = pd.read_csv(os.path.join(FINAL_RESULTS_DIR,'csv_logs',disease,str(chrom)))
+                scores += data.tail(1)['val_acc'].values
+
+            np.save(os.path.join(FINAL_RESULTS_DIR, 'accuracies', disease, 'deepcombi'), scores)
+
 
     def test_save_combi_rm_and_indices(self, real_h5py_data, real_labels):
         """ Extract indices gotten from combi
