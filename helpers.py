@@ -383,13 +383,17 @@ def compute_metrics(pvalues,truth, threshold):
     return tpr, enfr, fwer, precision
 
 def postprocess_weights(weights,top_k, filter_window_size, p_svm, p_pnorm_filter):
-    rm = abs(weights)/np.linalg.norm(weights, ord=2)
-    rm = rm.reshape(-1, 3) # Group  weights by 3 (yields locus's importance measure)
-    rm = np.sum(rm**p_svm, axis=1)**(1.0/p_svm)
-    rm /= np.linalg.norm(rm, ord=2)
-    rm = moving_average(rm,filter_window_size, p_pnorm_filter) 
-    top_indices_sorted = rm.argsort()[::-1][:top_k] # Gets indices of top_k greatest elements
-    return top_indices_sorted, rm
+    weights_ = postprocess_weights_without_avg(weights, top_k, p_svm)
+    weights_ = moving_average(weights_,filter_window_size, p_pnorm_filter)
+    top_indices_sorted = weights_.argsort()[::-1][:top_k] # Gets indices of top_k greatest elements
+    return top_indices_sorted, weights_
+
+def postprocess_weights_without_avg(weights,top_k, p_svm):
+    weights_ = abs(weights)/np.linalg.norm(weights, ord=2)
+    weights_ = weights_.reshape(-1, 3) # Group  weights by 3 (yields locus's importance measure)
+    weights_ = np.sum(weights_**p_svm, axis=1)**(1.0/p_svm)
+    weights_ /= np.linalg.norm(weights_, ord=2)
+    return weights_
 
 
 class EnforceNeg(Constraint):

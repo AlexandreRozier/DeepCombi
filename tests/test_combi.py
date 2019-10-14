@@ -4,26 +4,15 @@ import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 import numpy as np
 import time
-import math
 import os
 import h5py
-import copy
-import innvestigate
-import innvestigate.utils as iutils
-import keras
 from helpers import chi_square, h5py_to_featmat, generate_syn_phenotypes, compute_metrics, plot_pvalues
 from combi import combi_method, permuted_combi_method
-from sklearn.model_selection import train_test_split
-from keras.utils import to_categorical
-from keras.models import Sequential
-from keras.layers import Dense
-from keras import callbacks
-from keras.models import load_model
 from tqdm import tqdm
 from joblib import Parallel, delayed
 from sklearn import svm
-from parameters_complete import thresholds, IMG_DIR, TEST_DIR, DATA_DIR, Cs, n_total_snps, inform_snps, noise_snps
-from parameters_complete import svm_epsilon, filter_window_size, p_pnorm_filter, top_k, ttbr as ttbr, random_state, alpha_sig_toy
+from parameters_complete import thresholds, IMG_DIR, DATA_DIR, Cs, n_total_snps, inform_snps, noise_snps
+from parameters_complete import svm_epsilon, filter_window_size, top_k, ttbr as ttbr, random_state, alpha_sig_toy
 
 
 
