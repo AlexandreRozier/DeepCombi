@@ -58,10 +58,11 @@ random_state = np.random.RandomState(seed)
 
 
 filter_window_size= 35  # 35 # 1-41, odd!!!
+filter_window_size_mtest = 9  # 35 # 1-41, odd!!!
 
 # USED in char_matrix_to_featmat to scale the resulting feature matrix
 pnorm_feature_scaling = 2 
-real_pnorm_feature_scaling = 6 
+real_pnorm_feature_scaling = 6
 
 # USED TO APPLY SCALING ON WEIGHTS DURING THE POSTPROCESSING STEP 
 p_pnorm_filter = 2 

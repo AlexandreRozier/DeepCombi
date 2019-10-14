@@ -1,18 +1,14 @@
 
 
-import numpy as np 
-from sklearn import svm 
 import matplotlib
-matplotlib.use('Agg') 
-from matplotlib import pyplot as plt
+import numpy as np
+from sklearn import svm
+
+matplotlib.use('Agg')
 from tqdm import tqdm
-import math
-import os 
-from sklearn.preprocessing import StandardScaler
-from helpers import moving_average, chi_square, h5py_to_featmat, postprocess_weights
-from parameters_complete import TEST_DIR, svm_epsilon, Cs, real_Cs, n_total_snps, random_state
+from helpers import chi_square, postprocess_weights
+from parameters_complete import svm_epsilon, Cs, real_Cs, random_state
 from joblib import Parallel, delayed
-import tensorflow
 import innvestigate
 import innvestigate.utils as iutils
 from keras.utils import to_categorical
@@ -55,7 +51,7 @@ def deepcombi_method(model, data, fm, labels, filter_window_size, pnorm_filter, 
 
     model = iutils.keras.graph.model_wo_softmax(model)
     analyzer = innvestigate.analyzer.LRPAlpha1Beta0(model)
-    raw_weights = analyzer.analyze(fm).sum(0)
+    raw_weights = analyzer.analyze(fm).sum(0) # n_snps * 3
     
     top_indices_sorted,_ = postprocess_weights(raw_weights, top_k, filter_window_size, psvm, pnorm_filter)
     
