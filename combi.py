@@ -53,7 +53,7 @@ def deepcombi_method(model, data, fm, labels, filter_window_size, pnorm_filter, 
 
     model = iutils.keras.graph.model_wo_softmax(model)
     analyzer = innvestigate.analyzer.LRPAlpha1Beta0(model)
-    raw_weights = analyzer.analyze(fm).sum(0) # n_snps * 3
+    raw_weights = np.absolute(analyzer.analyze(fm)).sum(0) # n_snps * 3
     
     selected_indices_sorted,_ = postprocess_weights(raw_weights, top_k, filter_window_size, psvm, pnorm_filter)
     

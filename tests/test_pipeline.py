@@ -40,7 +40,7 @@ class TestPipeline(object):
         offset = 0
         selected_indices = []
         total_raw_rm = np.empty((0,3))
-        total_scaled_rm = np.empty((0,3))
+        total_scaled_rm = np.empty((0))
         scores = []
         idx = real_idx(disease)
         labels = real_labels(disease)
@@ -75,7 +75,7 @@ class TestPipeline(object):
         np.save(os.path.join(FINAL_RESULTS_DIR, 'accuracies',disease,'combi'), scores)
 
 
-
+        
     def test_svm(self):
         x = np.ones((10, 4))
         y = [0, 0, 0, 1, 1, 0, 0, 0, 0, 0]
@@ -90,7 +90,7 @@ class TestPipeline(object):
         offset = 0
         selected_indices = []
         total_raw_rm = np.empty((0, 3))
-        total_scaled_rm = np.empty((0, 3))
+        total_scaled_rm = np.empty((0))
         for chromo in tqdm(range(1, 23)):
             model = load_model(os.path.join(FINAL_RESULTS_DIR, 'trained_models', disease, 'model{}.h5'.format(chromo)))
 
