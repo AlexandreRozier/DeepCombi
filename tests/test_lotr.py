@@ -4,6 +4,7 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
 import os
+import pandas as pd
 import pickle
 import numpy as np
 import tensorflow
@@ -12,7 +13,7 @@ from keras.callbacks import TensorBoard, ReduceLROnPlateau, CSVLogger
 from helpers import char_matrix_to_featmat, postprocess_weights, get_available_gpus, postprocess_weights_without_avg
 from parameters_complete import FINAL_RESULTS_DIR, IMG_DIR, real_pnorm_feature_scaling, real_p_pnorm_filter, filter_window_size, real_top_k, p_svm
 from parameters_complete import disease_IDs
-import pandas as pd
+
 from keras import backend as K
 from combi import permuted_deepcombi_method, real_classifier
 from tqdm import tqdm
@@ -257,6 +258,7 @@ class TestLOTR(object):
                 print('Failed for item {}. Reason:{}'.format(disease_id, identifier))
                 raise ValueError(identifier)
 
+
     def test_train_models_with_best_params(self, real_h5py_data, real_labels_cat, real_idx):
         """ Generate a per-chromosom trained model for futur LRP-mapping quality assessment
         """
@@ -276,8 +278,8 @@ class TestLOTR(object):
         labels_cat = real_labels_cat(disease_id)
 
         hp = pickle.load(open(os.path.join(FINAL_RESULTS_DIR, 'hyperparams', disease_id, 'chrom{}.p'.format(chrom)), 'rb'))
-        hp['epochs'] = int(hp['epochs']) 
-        hp['n_snps'] = int(fm.shape[1]) 
+        hp['epochs'] = int(hp['epochs'])
+        hp['n_snps'] = int(fm.shape[1])
 
         idx = real_idx(disease_id)
         # Train 
@@ -301,8 +303,7 @@ class TestLOTR(object):
 
 
     def test_generate_plots(self, real_pvalues):
-        """ Plot manhattan figures of rpvt VS deepcombi, for one specific disease 
-        SGE_TASK_ID-1 : index of the disease processed by this node
+        """ Plot manhattan figures of rpvt VS deepcombi, for one specific disease
         """
         for disease_id in tqdm(disease_IDs):
 
@@ -312,6 +313,7 @@ class TestLOTR(object):
 
 
             chrom_fig, axes = plt.subplots(5, 1, sharex='col')
+            chrom_fig.tight_layout()
             chrom_fig.set_size_inches(18.5, 10.5)
 
             raw_pvalues_ax = axes[0]
@@ -320,22 +322,34 @@ class TestLOTR(object):
             deepc_selected_pvalues_ax = axes[3]
             deepc_rm_ax = axes[4]
 
+            # Set title
+            raw_pvalues_ax.set_title('Raw P-Values', fontsize=16)
+            deepc_selected_pvalues_ax.set_title('DeepCOMBI Method', fontsize=16)
+            c_selected_pvalues_ax.set_title('COMBI Method', fontsize=16)
+            c_rm_ax.set_title("COMBI's Relevance Mapping", fontsize=16)
+            deepc_rm_ax.set_title("DeepCOMBI's Relevance Mapping", fontsize=16)
+            deepc_rm_ax.set_xlabel('Chromosome number')
+
+            # Set labels
+            raw_pvalues_ax.set_ylabel('-log_10(pvalue)')
+            deepc_selected_pvalues_ax.set_ylabel('-log_10(pvalue)')
+            c_selected_pvalues_ax.set_ylabel('-log_10(pvalue)')
+            c_rm_ax.set_ylabel('SVM weights in %')
+            deepc_rm_ax.set_ylabel('LRP relevance mapping in %')
+            # Actually plot stuff
             top_indices_deepcombi = np.load(
                 os.path.join(FINAL_RESULTS_DIR, 'deepcombi_selected_indices', '{}.npy'.format(disease_id)))
             top_indices_combi = np.load(
                 os.path.join(FINAL_RESULTS_DIR, 'combi_selected_indices', '{}.npy'.format(disease_id)))
 
-            svm_raw_weights = np.load(os.path.join(FINAL_RESULTS_DIR, 'combi_raw_rm', '{}.npy'.format(disease_id)))
-            dc_raw_weights = np.load(os.path.join(FINAL_RESULTS_DIR, 'deepcombi_raw_rm', '{}.npy'.format(disease_id)))
-            svm_weights = np.absolute(svm_raw_weights).sum(1)#postprocess_weights_without_avg(svm_raw_weights, filter_window_size, p_svm)
-            dc_weights = np.absolute(dc_raw_weights).sum(1)#postprocess_weights_without_avg(dc_raw_weights, filter_window_size, p_svm)
+            svm_scaled_weights = np.load(os.path.join(FINAL_RESULTS_DIR, 'combi_raw_rm', '{}.npy'.format(disease_id))).sum(1) # TODO CHANGE
+            dc_scaled_weights = np.load(os.path.join(FINAL_RESULTS_DIR, 'deepcombi_raw_rm', '{}.npy'.format(disease_id))).sum(1)
 
             complete_pvalues = []
             n_snps = np.zeros(22)
             for i,chromo in enumerate(chromos):
 
                 raw_pvalues = real_pvalues(disease_id, chromo)
-
 
                 if disease_id == 'CAD' and chromo != 9:
                     raw_pvalues[raw_pvalues < 1e-6] = 1
@@ -355,38 +369,33 @@ class TestLOTR(object):
             deepcombi_selected_pvalues = np.ones(len(complete_pvalues))
             deepcombi_selected_pvalues[top_indices_deepcombi] = complete_pvalues[top_indices_deepcombi]
 
-
-            color = np.zeros((len(complete_pvalues), 3))
             informative_idx = np.argwhere(complete_pvalues < 1e-5)
 
+            # Color
+            color = np.zeros((len(complete_pvalues), 3))
             alt = True
             for i,offset in enumerate(offsets[:-1]):
                 color[offset:offsets[i+1]] = [0, 0, 0.7] if alt else [0.4, 0.4, 0.8]
                 alt = not alt
-
-
             color[informative_idx] = [0, 1, 0]
+
+            # Plot
             raw_pvalues_ax.scatter(range(len(complete_pvalues)),-np.log10(complete_pvalues), c=color, marker='x')
             deepc_selected_pvalues_ax.scatter( range(len(complete_pvalues)),-np.log10(deepcombi_selected_pvalues),
                                                 c=color, marker='x')
             c_selected_pvalues_ax.scatter(range(len(complete_pvalues)),-np.log10(combi_selected_pvalues),
                                             c=color, marker='x')
+            c_rm_ax.scatter(range(len(complete_pvalues)), svm_scaled_weights*100, c=color, marker='x')
+            deepc_rm_ax.scatter(range(len(complete_pvalues)), dc_scaled_weights*100, c=color, marker='x')
 
-            c_rm_ax.scatter(range(len(complete_pvalues)), svm_weights, c=color, marker='x')
-            deepc_rm_ax.scatter(range(len(complete_pvalues)), dc_weights, c=color, marker='x')
-
+            # Set ticks
             plt.setp(raw_pvalues_ax, xticks=middle_offset_history, xticklabels=range(1, 23))
             plt.setp(deepc_selected_pvalues_ax, xticks=middle_offset_history, xticklabels=range(1, 23))
             plt.setp(c_selected_pvalues_ax, xticks=middle_offset_history, xticklabels=range(1, 23))
             plt.setp(c_rm_ax , xticks=middle_offset_history, xticklabels=range(1, 23))
             plt.setp(deepc_rm_ax , xticks=middle_offset_history, xticklabels=range(1, 23))
             chrom_fig.canvas.set_window_title(disease_id)
-            raw_pvalues_ax.set_title('Raw p-values')
-            deepc_selected_pvalues_ax.set_title('PValues preselected by DeepCOMBI')
-            c_selected_pvalues_ax.set_title('PValues preselected by COMBI')
-            c_rm_ax.set_title('SVM rm')
-            deepc_rm_ax.set_title('DeepCOMBI rm')
-            deepc_rm_ax.set_xlabel('Chromosome')
+
 
             chrom_fig.savefig(os.path.join(FINAL_RESULTS_DIR, 'plots', '{}-manhattan.png'.format(disease_id)))
 

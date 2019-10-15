@@ -1,22 +1,24 @@
-import pandas as pd
-import pickle
 import os
-import scipy
-import numpy as np
-import sklearn
-from tqdm import tqdm
-from helpers import chi_square, char_matrix_to_featmat, postprocess_weights
-from combi import deepcombi_method, combi_method, real_classifier
-from parameters_complete import IMG_DIR, DATA_DIR, FINAL_RESULTS_DIR, real_pnorm_feature_scaling, real_p_pnorm_filter, \
-    p_svm, real_top_k, FINAL_RESULTS_DIR, filter_window_size, disease_IDs
-from models import create_montaez_dense_model_2
-from keras.models import load_model
-from sklearn.metrics import roc_curve, precision_recall_curve
 
 import matplotlib
-
 matplotlib.use('Qt5Agg')
 from matplotlib import pyplot as plt
+
+import numpy as np
+import pandas as pd
+import scipy
+import seaborn
+import sklearn
+from keras.models import load_model
+from sklearn.metrics import roc_curve, precision_recall_curve
+from tqdm import tqdm
+
+from combi import deepcombi_method, combi_method, real_classifier
+from helpers import char_matrix_to_featmat, postprocess_weights_without_avg
+from parameters_complete import DATA_DIR, real_pnorm_feature_scaling, real_p_pnorm_filter, \
+    p_svm, real_top_k, FINAL_RESULTS_DIR, filter_window_size, disease_IDs
+
+
 
 
 class TestPipeline(object):
@@ -38,6 +40,7 @@ class TestPipeline(object):
         offset = 0
         selected_indices = []
         total_raw_rm = np.empty((0,3))
+        total_scaled_rm = np.empty((0,3))
         scores = []
         idx = real_idx(disease)
         labels = real_labels(disease)
@@ -57,14 +60,18 @@ class TestPipeline(object):
             selected_indices += indices.tolist()
             offset += int(fm_2D.shape[1]/3)
             total_raw_rm = np.append(total_raw_rm, raw_rm, axis=0)
+            scaled_rm = postprocess_weights_without_avg(raw_rm,real_top_k,p_svm)
+            total_scaled_rm = np.append(total_scaled_rm, scaled_rm, axis=0)
 
             del data, fm_2D
 
         os.makedirs(os.path.join(FINAL_RESULTS_DIR, 'combi_selected_indices'), exist_ok=True)
         os.makedirs(os.path.join(FINAL_RESULTS_DIR, 'combi_raw_rm'), exist_ok=True)
+        os.makedirs(os.path.join(FINAL_RESULTS_DIR, 'combi_scaled_rm'), exist_ok=True)
 
         np.save(os.path.join(FINAL_RESULTS_DIR, 'combi_selected_indices', disease), selected_indices)
         np.save(os.path.join(FINAL_RESULTS_DIR, 'combi_raw_rm', disease ), total_raw_rm)
+        np.save(os.path.join(FINAL_RESULTS_DIR, 'combi_scaled_rm', disease ), total_scaled_rm)
         np.save(os.path.join(FINAL_RESULTS_DIR, 'accuracies',disease,'combi'), scores)
 
 
@@ -83,6 +90,7 @@ class TestPipeline(object):
         offset = 0
         selected_indices = []
         total_raw_rm = np.empty((0, 3))
+        total_scaled_rm = np.empty((0, 3))
         for chromo in tqdm(range(1, 23)):
             model = load_model(os.path.join(FINAL_RESULTS_DIR, 'trained_models', disease, 'model{}.h5'.format(chromo)))
 
@@ -93,15 +101,19 @@ class TestPipeline(object):
                                               p_svm, top_k=real_top_k)
             indices = offset + idx
             total_raw_rm = np.append(total_raw_rm, raw_rm, axis=0)
+            scaled_rm = postprocess_weights_without_avg(raw_rm, real_top_k, p_svm)
+            total_scaled_rm = np.append(total_scaled_rm, scaled_rm, axis=0)
             selected_indices += indices.tolist()
             offset += fm.shape[1]
             del data, fm, model
 
         os.makedirs(os.path.join(FINAL_RESULTS_DIR, 'deepcombi_selected_indices'), exist_ok=True)
         os.makedirs(os.path.join(FINAL_RESULTS_DIR, 'deepcombi_raw_rm'), exist_ok=True)
+        os.makedirs(os.path.join(FINAL_RESULTS_DIR, 'deepcombi_scaled_rm'), exist_ok=True)
 
         np.save(os.path.join(FINAL_RESULTS_DIR, 'deepcombi_selected_indices', disease), selected_indices)
         np.save(os.path.join(FINAL_RESULTS_DIR, 'deepcombi_raw_rm', disease), total_raw_rm)
+        np.save(os.path.join(FINAL_RESULTS_DIR, 'deepcombi_scaled_rm', disease), total_scaled_rm)
 
     def test_generate_roc_recall_curves(self, real_pvalues):
 
@@ -171,7 +183,7 @@ class TestPipeline(object):
             # SVM WEIGHTS
             raw_svm_scores = np.load(os.path.join(FINAL_RESULTS_DIR, 'combi_raw_rm', '{}.npy'.format(disease)))
             processed_svm_scores = \
-                postprocess_weights(raw_svm_scores, real_top_k, filter_window_size, p_svm, real_p_pnorm_filter)[1]
+                postprocess_weights_without_avg(raw_svm_scores, real_top_k, p_svm)
             processed_svm_scores = pd.Series(data=processed_svm_scores[candidates_raw_pvalues_genome_peaks.index],
                                              index=candidates_raw_pvalues_genome_peaks.index)
             combined_svm_scores = pd.concat([combined_svm_scores, processed_svm_scores])
@@ -180,7 +192,7 @@ class TestPipeline(object):
             raw_deepcombi_scores = np.load(
                 os.path.join(FINAL_RESULTS_DIR, 'deepcombi_raw_rm', '{}.npy'.format(disease)))
             processed_deepcombi_scores = \
-                postprocess_weights(raw_deepcombi_scores, real_top_k, filter_window_size, p_svm, real_p_pnorm_filter)[1]
+                postprocess_weights_without_avg(raw_deepcombi_scores, real_top_k, p_svm)
             processed_deepcombi_scores = pd.Series(
                 data=processed_deepcombi_scores[candidates_raw_pvalues_genome_peaks.index],
                 index=candidates_raw_pvalues_genome_peaks.index)
@@ -287,10 +299,23 @@ class TestPipeline(object):
         fig.savefig(os.path.join(FINAL_RESULTS_DIR, 'plots', 'precision-tp.png'))
 
 
-    def test_print_accuracies(self):
-        for disease in disease_IDs:
-            combi_acc = np.load(os.path.join(FINAL_RESULTS_DIR, 'accuracies',disease,'combi.npy'))            
-            dc_acc = np.load(os.path.join(FINAL_RESULTS_DIR, 'accuracies',disease,'deepcombi.npy'))
-            print(disease)
-            print('COMBI val_acc: {}'.format(combi_acc))            
-            print('DeepCOMBI val_acc: {}'.format(dc_acc))
+
+    def test_generate_val_acc_graph(self):
+        rows_list = []
+        for i, disease in enumerate(disease_IDs):
+            combi_acc = np.load(os.path.join(FINAL_RESULTS_DIR, 'accuracies',disease,'combi.npy')) *100
+            dc_acc = np.load(os.path.join(FINAL_RESULTS_DIR, 'accuracies',disease,'deepcombi.npy')) *100
+            for elt in combi_acc:
+                rows_list.append({'Disease': disease,
+                                  'Validation Accuracy': elt,
+                                  'Method': 'COMBI'})
+            for elt in dc_acc:
+
+                rows_list.append({'Disease':disease,
+                                  'Validation Accuracy':elt,
+                                  'Method':'DeepCOMBI'})
+
+        df = pd.DataFrame(rows_list)
+
+        barplot = seaborn.barplot(x='Disease', hue='Method', y='Validation Accuracy', data=df,capsize=.2)
+        barplot.figure.savefig(os.path.join(FINAL_RESULTS_DIR,'plots','accuracies_comparison.png'))

@@ -1,20 +1,19 @@
-from scipy.stats import chi2
-import math
-import numpy as np
-import sklearn.preprocessing as pp
-import tensorflow as tf 
-from keras.constraints import Constraint
 import os
-import io
-from tqdm import tqdm
+
 import h5py
+import numpy as np
+import tensorflow as tf
 import torch
-from tqdm import tqdm
-from parameters_complete import DATA_DIR, ttbr as ttbr, n_subjects, pnorm_feature_scaling, inform_snps, random_state, seed
-from joblib import Parallel, delayed
-from torch.utils.data.sampler import SubsetRandomSampler
 import torch.utils.data as data_utils
+from joblib import Parallel, delayed
+from keras.constraints import Constraint
+from scipy.stats import chi2
 from tensorflow.python.client import device_lib
+from torch.utils.data.sampler import SubsetRandomSampler
+from tqdm import tqdm
+
+from parameters_complete import DATA_DIR, ttbr as ttbr, n_subjects, pnorm_feature_scaling, inform_snps, seed
+
 
 def get_available_gpus():
     local_device_protos = device_lib.list_local_devices()
