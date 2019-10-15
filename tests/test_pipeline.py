@@ -45,8 +45,10 @@ class TestPipeline(object):
         for chromo in tqdm(range(1,23)):
             data = real_h5py_data(disease, chromo)
             fm_2D = char_matrix_to_featmat(data, '2d', real_pnorm_feature_scaling)
+            # Save weights + indices
             selected_idx, _, raw_rm = combi_method(real_classifier, data[idx.train], fm_2D[idx.train], labels[idx.train], filter_window_size, real_p_pnorm_filter,
                                                 p_svm, top_k=real_top_k)
+            # Save validation accuracies
             real_classifier.fit(fm_2D[idx.train], labels[idx.train])
             scores.append(real_classifier.score(fm_2D[idx.test], labels[idx.test]))
                

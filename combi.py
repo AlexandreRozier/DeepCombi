@@ -7,7 +7,7 @@ from sklearn import svm
 matplotlib.use('Agg')
 from tqdm import tqdm
 
-from helpers import chi_square, postprocess_weights, postprocess_weights_without_avg
+from helpers import chi_square, postprocess_weights
 from parameters_complete import svm_epsilon, Cs, real_Cs, random_state
 
 from joblib import Parallel, delayed
@@ -33,12 +33,12 @@ def combi_method(classifier,data, fm, labels, filter_window_size, pnorm_filter, 
     classifier.fit(fm, labels)
     raw_weights = classifier.coef_[0] # n_snps * 3
     
-    top_indices_sorted, _ = postprocess_weights_without(raw_weights,top_k, filter_window_size, psvm, pnorm_filter)
+    selected_indices_sorted, _ = postprocess_weights(raw_weights,top_k, filter_window_size, psvm, pnorm_filter)
     
     # For those SNPs, compute p-values on the second half of the data
-    pvalues = chi_square(data[:,top_indices_sorted], labels)
+    pvalues = chi_square(data[:,selected_indices_sorted], labels)
 
-    return top_indices_sorted, pvalues, raw_weights.reshape(-1, 3)
+    return selected_indices_sorted, pvalues, raw_weights.reshape(-1, 3)
 
 
 def deepcombi_method(model, data, fm, labels, filter_window_size, pnorm_filter, psvm, top_k):
@@ -55,11 +55,11 @@ def deepcombi_method(model, data, fm, labels, filter_window_size, pnorm_filter, 
     analyzer = innvestigate.analyzer.LRPAlpha1Beta0(model)
     raw_weights = analyzer.analyze(fm).sum(0) # n_snps * 3
     
-    top_indices_sorted,_ = postprocess_weights(raw_weights, top_k, filter_window_size, psvm, pnorm_filter)
+    selected_indices_sorted,_ = postprocess_weights(raw_weights, top_k, filter_window_size, psvm, pnorm_filter)
     
-    pvalues = chi_square(data[:,top_indices_sorted], labels)
+    pvalues = chi_square(data[:,selected_indices_sorted], labels)
 
-    return top_indices_sorted, pvalues, raw_weights
+    return selected_indices_sorted, pvalues, raw_weights
 
 
 

@@ -12,7 +12,7 @@ from keras.callbacks import TensorBoard, ReduceLROnPlateau, CSVLogger
 from helpers import char_matrix_to_featmat, postprocess_weights, get_available_gpus, postprocess_weights_without_avg
 from parameters_complete import FINAL_RESULTS_DIR, IMG_DIR, real_pnorm_feature_scaling, real_p_pnorm_filter, filter_window_size, real_top_k, p_svm
 from parameters_complete import disease_IDs
-
+import pandas as pd
 from keras import backend as K
 from combi import permuted_deepcombi_method, real_classifier
 from tqdm import tqdm
@@ -230,31 +230,32 @@ class TestLOTR(object):
                   verbose=1)
 
     def test_extract_best_hps(self):
-        for chromo in tqdm(range(1, 23)):
 
-            for disease_id in disease_IDs:
-                try:
+        for disease_id in disease_IDs:
+            try:
+                data = pd.DataFrame()
+                talos_disease_directory = os.path.join(FINAL_RESULTS_DIR, 'talos', disease_id)
+                for root, _, files in os.walk(talos_disease_directory):
+                    for file in files:
+                        if file.endswith(".csv"):
+                            df = pd.read_csv(os.path.join(root, file))
+                            data = data.append(df, ignore_index=True)
 
-                    dirname = os.path.join('talos_CD_l1_lr_hn','talos_chrom_{}'.format(chromo))  # TODO CHANGE PREFIX
+                data.sort_values(by=['val_acc'], ascending=False, inplace=True)
+                best_hps = data[data['acc'] > 0.80].iloc[0].to_dict()
+                #best_hps['epochs'] = 250
+                # best_hps['hidden_neurons'] = 6
+                # best_hps['lr'] = 1e-4
+                # best_hps['l1_reg'] = 1e-5
+                # best_hps['n_snps'] = int(best_hps['n_snps'])
 
-                    files = os.listdir(dirname)
-                    r = talos.Reporting(os.path.join(dirname, files[0]))
-
-                    data = r.table('val_acc', sort_by='val_acc', ascending=False)
-                    best_row = data[data['acc'] > 0.80].iloc[0]
-                    best_hps = best_row.to_dict()
-                    best_hps['epochs'] = 250
-                    best_hps['hidden_neurons'] = 6
-                    best_hps['lr'] = 1e-4
-                    best_hps['l1_reg'] = 1e-5
-                    best_hps['n_snps'] = int(best_hps['n_snps'])
-
+                for chromo in tqdm(range(1, 23)):
                     filename = os.path.join(FINAL_RESULTS_DIR, 'hyperparams', disease_id, 'chrom{}.p'.format(chromo))
                     os.makedirs(os.path.dirname(filename), exist_ok=True)
                     pickle.dump(best_hps, open(filename, 'wb'))
-                except Exception as identifier:
-                    print('Failed for item {}. Reason:{}'.format(chromo, identifier))
-                    raise ValueError(identifier)
+            except Exception as identifier:
+                print('Failed for item {}. Reason:{}'.format(disease_id, identifier))
+                raise ValueError(identifier)
 
     def test_train_models_with_best_params(self, real_h5py_data, real_labels_cat, real_idx):
         """ Generate a per-chromosom trained model for futur LRP-mapping quality assessment
@@ -275,8 +276,8 @@ class TestLOTR(object):
         labels_cat = real_labels_cat(disease_id)
 
         hp = pickle.load(open(os.path.join(FINAL_RESULTS_DIR, 'hyperparams', disease_id, 'chrom{}.p'.format(chrom)), 'rb'))
-        hp['epochs'] = int(hp['epochs']) #TODO remove me
-        print(hp)
+        hp['epochs'] = int(hp['epochs']) 
+        hp['n_snps'] = int(fm.shape[1]) 
 
         idx = real_idx(disease_id)
         # Train 
