@@ -72,6 +72,21 @@ def real_h5py_data():
         
     return real_data_
 
+@pytest.fixture(scope="module")
+def chrom_length():
+    def chrom_length_(disease, chrom):
+        try:
+            _, shape, _ =  scipy.io.whosmat(os.path.join(DATA_DIR, disease, 'chromo_{}.mat'.format(chrom)))[0][1]/3.0
+
+        except NotImplementedError:
+            shape = h5py.File(os.path.join(DATA_DIR, disease, 'chromo_{}.mat'.format(chrom))).get('X').shape[0]/3.0
+        return int(shape)
+
+    return chrom_length_
+
+
+    return real_data_
+
 
 @pytest.fixture(scope='module')
 def real_labels():

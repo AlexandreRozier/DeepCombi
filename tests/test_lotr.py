@@ -28,69 +28,6 @@ TEST_PERCENTAGE = 0.20
 
 class TestLOTR(object):
 
-    def test_lrp(self, real_h5py_data, real_labels, real_labels_0based,real_pvalues, real_labels_cat, real_idx, rep, tmp_path):
-
-        fig, axes = plt.subplots(5, 1, sharex='col')
-
-        h5py_data = real_h5py_data(1)
-
-        x_2d = char_matrix_to_featmat(h5py_data, '2d', real_pnorm_feature_scaling)
-        x_3d = char_matrix_to_featmat(h5py_data, '3d', real_pnorm_feature_scaling)
-
-        g = best_params_montaez_2
-        g['n_snps'] = x_3d.shape[1]
-
-
-        model = create_montaez_dense_model_2(g)
-        model.fit(x=x_3d[real_idx.train],
-                  y=real_labels_cat[real_idx.train],
-                  validation_data=(x_3d[real_idx.test], real_labels_cat[real_idx.test]),
-                  epochs=g['epochs']
-                  )
-
-        model = iutils.keras.graph.model_wo_softmax(model)
-        analyzer = innvestigate.analyzer.LRPAlpha1Beta0(model)
-        weights = np.absolute(analyzer.analyze(x_3d).sum(0))
-
-        _, postprocessed_weights = postprocess_weights(
-            weights, real_top_k, filter_window_size, p_svm, real_p_pnorm_filter)
-
-        complete_pvalues = real_pvalues('CD',1)
-        axes[0].plot(-np.log10(complete_pvalues))
-        axes[0].set_title('RPV')
-
-        # Plot distribution of relevance
-        axes[1].plot(np.absolute(weights).reshape(-1, 3).sum(1))
-        axes[1].set_title('Absolute relevance')
-
-        # Plot distribution of postprocessed vectors
-        axes[2].plot(postprocessed_weights)
-        axes[2].set_title('Postprocessed relevance')
-
-        # Plot distribution of svm weights
-        svm_weights = real_classifier.fit(x_2d, real_labels).coef_
-        axes[3].plot(np.absolute(svm_weights).reshape(-1, 3).sum(1))
-        axes[3].set_title('Absolute SVM weight')
-
-        _, postprocessed_svm_weights = postprocess_weights(
-            np.absolute(svm_weights), real_top_k, filter_window_size, p_svm, real_p_pnorm_filter)
-
-        axes[4].plot(postprocessed_svm_weights)
-        axes[4].set_title('Postprocessed SVM weight')
-
-        fig.savefig(os.path.join(IMG_DIR, 'manhattan-real.png'))
-
-    def test_svm_avg_accuracy(self, real_h5py_data, real_labels, real_idx):
-        score = 0
-        chroms = [1, 2, 3, 5]
-        for chrom in tqdm(chroms):
-            data = real_h5py_data(chrom)
-            x_2d = char_matrix_to_featmat(data, '2d', real_pnorm_feature_scaling)
-
-            real_classifier.fit(x_2d[real_idx.train], real_labels[real_idx.train])
-            score += real_classifier.score(x_2d[real_idx.test], real_labels[real_idx.test])
-        score /= len(chroms)
-        print("Average SVM test accuracy : {}".format(score))
 
     def test_class_proportions(self, real_labels, real_idx):
         train_labels = real_labels[real_idx.train]
@@ -199,12 +136,6 @@ class TestLOTR(object):
         pickle.dump(t_star, open(os.path.join(FINAL_RESULTS_DIR, 'chrom{}-t_star.p'.format(chrom)), 'wb'))
         pickle.dump(t_star_EV, open(os.path.join(FINAL_RESULTS_DIR, 'chrom{}-t_star_EV.p'.format(chrom)), 'wb'))
 
-    def test_svm_accuracy(self, real_h5py_data, real_labels, real_labels_0based, real_idx):
-        data = real_h5py_data(1)
-        x = char_matrix_to_featmat(data, '2d',real_pnorm_feature_scaling)
-        print('Fitting data...')
-        svm_model = real_classifier.fit(x[real_idx.train], real_labels[real_idx.train])
-        print(svm_model.score(x[real_idx.test], real_labels[real_idx.test]))
 
     def test_parameters(self, real_h5py_data, real_labels_cat, real_idx):
 
@@ -244,11 +175,10 @@ class TestLOTR(object):
 
                 data.sort_values(by=['val_acc'], ascending=False, inplace=True)
                 best_hps = data[data['acc'] > 0.80].iloc[0].to_dict()
-                #best_hps['epochs'] = 250
-                # best_hps['hidden_neurons'] = 6
-                # best_hps['lr'] = 1e-4
-                # best_hps['l1_reg'] = 1e-5
-                # best_hps['n_snps'] = int(best_hps['n_snps'])
+                best_hps['epochs'] = 250
+                best_hps['hidden_neurons'] = 6
+                best_hps['lr'] = 1e-4
+                best_hps['l1_reg'] = 1e-5
 
                 for chromo in tqdm(range(1, 23)):
                     filename = os.path.join(FINAL_RESULTS_DIR, 'hyperparams', disease_id, 'chrom{}.p'.format(chromo))
@@ -261,6 +191,7 @@ class TestLOTR(object):
 
     def test_train_models_with_best_params(self, real_h5py_data, real_labels_cat, real_idx):
         """ Generate a per-chromosom trained model for futur LRP-mapping quality assessment
+        TRAINS ON WHOLE DATASET
         """
         candidates = []
         for disease_id in disease_IDs:
@@ -281,15 +212,12 @@ class TestLOTR(object):
         hp['epochs'] = int(hp['epochs'])
         hp['n_snps'] = int(fm.shape[1])
 
-        idx = real_idx(disease_id)
-        # Train 
-
+        # Train
         os.makedirs(os.path.join(FINAL_RESULTS_DIR, 'csv_logs', disease_id), exist_ok=True)
 
         model = create_montaez_dense_model_2(hp)
-        model.fit(x=fm[idx.train],
-                    y=labels_cat[idx.train],
-                    validation_data=(fm[idx.test], labels_cat[idx.test]),
+        model.fit(x=fm,
+                    y=labels_cat,
                     epochs=hp['epochs'],
                     callbacks=[
                         CSVLogger(os.path.join(FINAL_RESULTS_DIR, 'csv_logs', disease_id, '{}'.format(chrom)))
@@ -300,102 +228,4 @@ class TestLOTR(object):
         model.save(filename)
         K.clear_session()
         del data, fm, model 
-
-
-    def test_generate_plots(self, real_pvalues):
-        """ Plot manhattan figures of rpvt VS deepcombi, for one specific disease
-        """
-        for disease_id in tqdm(disease_IDs):
-
-            chromos = range(1, 23)
-            offsets = np.zeros(len(chromos) + 1, dtype=np.int)
-            middle_offset_history = np.zeros(len(chromos), dtype=np.int)
-
-
-            chrom_fig, axes = plt.subplots(5, 1, sharex='col')
-            chrom_fig.tight_layout()
-            chrom_fig.set_size_inches(18.5, 10.5)
-
-            raw_pvalues_ax = axes[0]
-            c_selected_pvalues_ax = axes[1]
-            c_rm_ax = axes[2]
-            deepc_selected_pvalues_ax = axes[3]
-            deepc_rm_ax = axes[4]
-
-            # Set title
-            raw_pvalues_ax.set_title('Raw P-Values', fontsize=16)
-            deepc_selected_pvalues_ax.set_title('DeepCOMBI Method', fontsize=16)
-            c_selected_pvalues_ax.set_title('COMBI Method', fontsize=16)
-            c_rm_ax.set_title("COMBI's Relevance Mapping", fontsize=16)
-            deepc_rm_ax.set_title("DeepCOMBI's Relevance Mapping", fontsize=16)
-            deepc_rm_ax.set_xlabel('Chromosome number')
-
-            # Set labels
-            raw_pvalues_ax.set_ylabel('-log_10(pvalue)')
-            deepc_selected_pvalues_ax.set_ylabel('-log_10(pvalue)')
-            c_selected_pvalues_ax.set_ylabel('-log_10(pvalue)')
-            c_rm_ax.set_ylabel('SVM weights in %')
-            deepc_rm_ax.set_ylabel('LRP relevance mapping in %')
-            # Actually plot stuff
-            top_indices_deepcombi = np.load(
-                os.path.join(FINAL_RESULTS_DIR, 'deepcombi_selected_indices', '{}.npy'.format(disease_id)))
-            top_indices_combi = np.load(
-                os.path.join(FINAL_RESULTS_DIR, 'combi_selected_indices', '{}.npy'.format(disease_id)))
-
-            svm_scaled_weights = np.load(os.path.join(FINAL_RESULTS_DIR, 'combi_raw_rm', '{}.npy'.format(disease_id))).sum(1) # TODO CHANGE
-            dc_scaled_weights = np.load(os.path.join(FINAL_RESULTS_DIR, 'deepcombi_raw_rm', '{}.npy'.format(disease_id))).sum(1)
-
-            complete_pvalues = []
-            n_snps = np.zeros(22)
-            for i,chromo in enumerate(chromos):
-
-                raw_pvalues = real_pvalues(disease_id, chromo)
-
-                if disease_id == 'CAD' and chromo != 9:
-                    raw_pvalues[raw_pvalues < 1e-6] = 1
-
-                complete_pvalues += raw_pvalues.tolist()
-
-                n_snps[i] = len(raw_pvalues)
-                offsets[i + 1] = offsets[i] + n_snps[i]
-                middle_offset_history[i] = offsets[i] + int(n_snps[i] / 2)
-
-            complete_pvalues = np.array(complete_pvalues).flatten()
-
-
-            combi_selected_pvalues = np.ones(len(complete_pvalues))
-            combi_selected_pvalues[top_indices_combi] = complete_pvalues[top_indices_combi]
-
-            deepcombi_selected_pvalues = np.ones(len(complete_pvalues))
-            deepcombi_selected_pvalues[top_indices_deepcombi] = complete_pvalues[top_indices_deepcombi]
-
-            informative_idx = np.argwhere(complete_pvalues < 1e-5)
-
-            # Color
-            color = np.zeros((len(complete_pvalues), 3))
-            alt = True
-            for i,offset in enumerate(offsets[:-1]):
-                color[offset:offsets[i+1]] = [0, 0, 0.7] if alt else [0.4, 0.4, 0.8]
-                alt = not alt
-            color[informative_idx] = [0, 1, 0]
-
-            # Plot
-            raw_pvalues_ax.scatter(range(len(complete_pvalues)),-np.log10(complete_pvalues), c=color, marker='x')
-            deepc_selected_pvalues_ax.scatter( range(len(complete_pvalues)),-np.log10(deepcombi_selected_pvalues),
-                                                c=color, marker='x')
-            c_selected_pvalues_ax.scatter(range(len(complete_pvalues)),-np.log10(combi_selected_pvalues),
-                                            c=color, marker='x')
-            c_rm_ax.scatter(range(len(complete_pvalues)), svm_scaled_weights*100, c=color, marker='x')
-            deepc_rm_ax.scatter(range(len(complete_pvalues)), dc_scaled_weights*100, c=color, marker='x')
-
-            # Set ticks
-            plt.setp(raw_pvalues_ax, xticks=middle_offset_history, xticklabels=range(1, 23))
-            plt.setp(deepc_selected_pvalues_ax, xticks=middle_offset_history, xticklabels=range(1, 23))
-            plt.setp(c_selected_pvalues_ax, xticks=middle_offset_history, xticklabels=range(1, 23))
-            plt.setp(c_rm_ax , xticks=middle_offset_history, xticklabels=range(1, 23))
-            plt.setp(deepc_rm_ax , xticks=middle_offset_history, xticklabels=range(1, 23))
-            chrom_fig.canvas.set_window_title(disease_id)
-
-
-            chrom_fig.savefig(os.path.join(FINAL_RESULTS_DIR, 'plots', '{}-manhattan.png'.format(disease_id)))
 

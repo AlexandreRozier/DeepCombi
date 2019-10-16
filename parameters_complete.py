@@ -23,7 +23,7 @@ PARAMETERS_DIR = os.path.join(TEST_DIR,'parameters')
 SAVED_MODELS_DIR = os.path.join(TEST_DIR,'exported_models')
 TB_DIR = os.path.join(TEST_DIR,'exported_models')
 NUMPY_ARRAYS = os.path.join(ROOT_DIR,'numpy_arrays')
-FINAL_RESULTS_DIR = os.path.join(ROOT_DIR,'final_results')
+FINAL_RESULTS_DIR = os.path.join(ROOT_DIR,'CROHN_C1_TRAINED_BCKP')
 ########
 ttbr = 6
 n_subjects= 300  

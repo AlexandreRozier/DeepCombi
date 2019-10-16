@@ -1,14 +1,11 @@
-import torch.nn as nn
-import torch.nn.functional as F
-
 import os
-from lrp import create_montaez_pytorch_model, create_dummy_pytorch_linear, ExConv1d
-import torch.utils.data as data_utils
-from torch.utils.data.sampler import SubsetRandomSampler
-from combi import chi_square
-from helpers import postprocess_weights, plot_pvalues, train_torch_model
-from parameters_complete import top_k, filter_window_size, p_svm,p_pnorm_filter, IMG_DIR, n_total_snps, TB_DIR
+
 import matplotlib
+
+from combi import chi_square
+from helpers import postprocess_weights, plot_pvalues
+from parameters_complete import top_k, filter_window_size, p_svm, p_pnorm_filter, IMG_DIR, n_total_snps, TB_DIR
+
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from models import MontaezNet, best_params_montaez

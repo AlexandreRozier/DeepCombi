@@ -251,25 +251,21 @@ def h5py_to_featmat(h5py_data, embedding_type='2d', overwrite=False):
 
 
 
-def moving_average(w, k, pnorm_filter):
+def moving_average(weights, window, pnorm_filter):
     """
     Inspired from https://uk.mathworks.com/matlabcentral/fileexchange/12276-moving_average-v3-1-mar-2008
     """
 
-    if k == 1:
-        return w
 
-    assert(k % 2 == 1)
-
-    wnew = w ** pnorm_filter
+    wnew = weights ** pnorm_filter
     wnew = np.concatenate((
-        np.zeros(int((k-1)/2+1)),
+        np.zeros(int((window - 1) / 2 + 1)),
         wnew,
-        np.zeros(int((k-1)/2))),
+        np.zeros(int((window - 1) / 2))),
         axis=None)
     wnew = np.cumsum(wnew)
-    wnew = (wnew[k:] - wnew[0:-k])**(1.0/pnorm_filter)
-    wnew /= k**(1.0/pnorm_filter)
+    wnew = (wnew[window:] - wnew[0:-window]) ** (1.0 / pnorm_filter)
+    wnew /= window ** (1.0 / pnorm_filter)
     return wnew
 
 
@@ -382,12 +378,14 @@ def compute_metrics(pvalues,truth, threshold):
     return tpr, enfr, fwer, precision
 
 def postprocess_weights(weights,top_k, filter_window_size, p_svm, p_pnorm_filter):
-    weights_ = postprocess_weights_without_avg(weights, top_k, p_svm)
+    weights_ = postprocess_weights_without_avg(weights, p_svm)
     weights_ = moving_average(weights_,filter_window_size, p_pnorm_filter)
     top_indices_sorted = weights_.argsort()[::-1][:top_k] # Gets indices of top_k greatest elements
     return top_indices_sorted, weights_
 
-def postprocess_weights_without_avg(weights,top_k, p_svm):
+def postprocess_weights_without_avg(weights, p_svm):
+    if np.count_nonzero(weights)==0:
+        return np.zeros(weights.reshape(-1, 3).shape[0])
     weights_ = abs(weights)/np.linalg.norm(weights, ord=2)
     weights_ = weights_.reshape(-1, 3) # Group  weights by 3 (yields locus's importance measure)
     weights_ = np.sum(weights_**p_svm, axis=1)**(1.0/p_svm)
