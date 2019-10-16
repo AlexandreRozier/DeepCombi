@@ -153,7 +153,7 @@ def generate_syn_phenotypes(root_path=DATA_DIR, ttbr=ttbr, prefix="syn", n_info_
 
 
 
-def char_matrix_to_featmat(data, embedding_type='2d', norm_feature_scaling=pnorm_feature_scaling,):
+def char_matrix_to_featmat(data, embedding_type='2d', norm_feature_scaling=pnorm_feature_scaling):
     
     ###  Global Parameters   ###
     (n_subjects, num_snp3, _) = data.shape
@@ -386,8 +386,8 @@ def postprocess_weights(weights,top_k, filter_window_size, p_svm, p_pnorm_filter
 def postprocess_weights_without_avg(weights, p_svm):
     if np.count_nonzero(weights)==0:
         return np.zeros(weights.reshape(-1, 3).shape[0])
-    weights_ = abs(weights)/np.linalg.norm(weights, ord=2)
-    weights_ = weights_.reshape(-1, 3) # Group  weights by 3 (yields locus's importance measure)
+    weights_ = np.absolute(weights)/np.linalg.norm(weights, ord=2)
+    weights_ = np.absolute(weights_.reshape(-1, 3))# Group  weights by 3 (yields locus's importance measure)
     weights_ = np.sum(weights_**p_svm, axis=1)**(1.0/p_svm)
     weights_ /= np.linalg.norm(weights_, ord=2)
     return weights_

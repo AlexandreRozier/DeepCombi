@@ -6,12 +6,13 @@ import numpy as np
 import time
 import os
 import h5py
-from helpers import chi_square, h5py_to_featmat, generate_syn_phenotypes, compute_metrics, plot_pvalues
-from combi import combi_method, permuted_combi_method
+from helpers import chi_square, h5py_to_featmat, generate_syn_phenotypes, compute_metrics, plot_pvalues, char_matrix_to_featmat
+from combi import combi_method, permuted_combi_method, toy_classifier
 from tqdm import tqdm
 from joblib import Parallel, delayed
 from sklearn import svm
-from parameters_complete import thresholds, IMG_DIR, DATA_DIR, Cs, n_total_snps, inform_snps, noise_snps
+from parameters_complete import thresholds, IMG_DIR, DATA_DIR, Cs, n_total_snps, inform_snps, noise_snps, \
+    real_pnorm_feature_scaling
 from parameters_complete import svm_epsilon, filter_window_size, top_k, ttbr as ttbr, random_state, alpha_sig_toy
 
 
@@ -60,7 +61,8 @@ class TestCombi(object):
     def test_combi(self,h5py_data, labels):
         h5py_data = h5py_data['0'][:]
         labels = labels['0']
-        top_indices_sorted, pvalues, _ = combi_method(h5py_data, fm, labels,
+        fm = char_matrix_to_featmat(h5py_data, '2d', real_pnorm_feature_scaling)
+        top_indices_sorted, pvalues, _ = combi_method(toy_classifier, h5py_data, fm, labels,
                                 filter_window_size, top_k)
         print('PVALUES CHOSEN: {}'.format(top_indices_sorted))
 

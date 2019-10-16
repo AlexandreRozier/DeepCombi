@@ -10,7 +10,7 @@ from keras.models import load_model
 from tqdm import tqdm
 
 from combi import deepcombi_method, combi_method, real_classifier
-from helpers import char_matrix_to_featmat, postprocess_weights_without_avg, postprocess_weights, moving_average
+from helpers import char_matrix_to_featmat, postprocess_weights_without_avg, moving_average
 from parameters_complete import real_pnorm_feature_scaling, real_p_pnorm_filter, \
     p_svm, real_top_k, FINAL_RESULTS_DIR, filter_window_size, disease_IDs
 
@@ -34,20 +34,19 @@ class TestPipeline(object):
         selected_indices = []
         total_raw_rm = np.empty((0, 3))
         labels = real_labels(disease)
-        
+
         for chromo in tqdm(range(1, 23)):
             data = real_h5py_data(disease, chromo)
             fm_2D = char_matrix_to_featmat(data, '2d', real_pnorm_feature_scaling)
             # Save weights + indices
             selected_idx, _, raw_rm = combi_method(real_classifier, data, fm_2D,
                                                    labels, filter_window_size, real_p_pnorm_filter,
-                                                   p_svm, top_k=real_top_k)
-            # Save validation accuracies
+                                                   p_svm, real_top_k)
 
             indices = offset + selected_idx
 
             selected_indices += indices.tolist()
-            offset += chrom_length(disease,chromo)
+            offset += chrom_length(disease, chromo)
             total_raw_rm = np.append(total_raw_rm, raw_rm, axis=0)
 
             del data, fm_2D
@@ -91,17 +90,23 @@ class TestPipeline(object):
 
         os.makedirs(os.path.join(FINAL_RESULTS_DIR, 'combi_avg_rm'), exist_ok=True)
         os.makedirs(os.path.join(FINAL_RESULTS_DIR, 'combi_scaled_rm'), exist_ok=True)
+        os.makedirs(os.path.join(FINAL_RESULTS_DIR, 'combi_selected_indices'), exist_ok=True)
+
         os.makedirs(os.path.join(FINAL_RESULTS_DIR, 'deepcombi_avg_rm'), exist_ok=True)
         os.makedirs(os.path.join(FINAL_RESULTS_DIR, 'deepcombi_scaled_rm'), exist_ok=True)
+        os.makedirs(os.path.join(FINAL_RESULTS_DIR, 'deepcombi_selected_indices'), exist_ok=True)
 
         for disease in disease_IDs:
             combi_raw_rm = np.load(os.path.join(FINAL_RESULTS_DIR, 'combi_raw_rm', '{}.npy'.format(disease)))
             combi_scaled_rm = np.zeros(combi_raw_rm.shape[0])
             combi_avg_rm = np.zeros(combi_raw_rm.shape[0])
+            combi_selected_idx = []
 
             deepcombi_raw_rm = np.load(os.path.join(FINAL_RESULTS_DIR, 'deepcombi_raw_rm','{}.npy'.format(disease)))
             deepcombi_scaled_rm = np.zeros(deepcombi_raw_rm.shape[0])
             deepcombi_avg_rm = np.zeros(deepcombi_raw_rm.shape[0])
+            deepcombi_selected_idx = []
+
             offset = 0
 
             assert not np.isnan(combi_raw_rm.sum())
@@ -116,12 +121,19 @@ class TestPipeline(object):
                     combi_scaled_rm[offset:offset + chromo_length],
                     filter_window_size,
                     real_p_pnorm_filter)
+                combi_idx = combi_avg_rm[offset: offset+chromo_length].argsort()[::-1][:real_top_k]
+                combi_idx += offset
+                combi_selected_idx += combi_idx.tolist()
 
                 deepcombi_scaled_rm[offset:offset + chromo_length] = postprocess_weights_without_avg(deepcombi_raw_rm[offset:offset+chromo_length],p_svm)
                 deepcombi_avg_rm[offset:offset + chromo_length] = moving_average(
                     deepcombi_scaled_rm[offset:offset + chromo_length],
                     filter_window_size,
                     real_p_pnorm_filter)
+                deepcombi_idx = deepcombi_avg_rm[offset: offset + chromo_length].argsort()[::-1][:real_top_k]
+                deepcombi_idx += offset
+                deepcombi_selected_idx += deepcombi_idx.tolist()
+
                 offset += chromo_length
 
             assert not np.isnan(combi_scaled_rm.sum())
@@ -131,6 +143,9 @@ class TestPipeline(object):
 
             np.save(os.path.join(FINAL_RESULTS_DIR, 'combi_avg_rm', disease), combi_avg_rm)
             np.save(os.path.join(FINAL_RESULTS_DIR, 'combi_scaled_rm', disease), combi_scaled_rm)
+            np.save(os.path.join(FINAL_RESULTS_DIR, 'combi_selected_indices', disease), combi_selected_idx)
+
             np.save(os.path.join(FINAL_RESULTS_DIR, 'deepcombi_avg_rm', disease), deepcombi_avg_rm)
             np.save(os.path.join(FINAL_RESULTS_DIR, 'deepcombi_scaled_rm', disease), deepcombi_scaled_rm)
+            np.save(os.path.join(FINAL_RESULTS_DIR, 'deepcombi_selected_indices', disease), deepcombi_selected_idx)
 
