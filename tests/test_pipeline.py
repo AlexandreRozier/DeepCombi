@@ -85,6 +85,7 @@ class TestPipeline(object):
         np.save(os.path.join(FINAL_RESULTS_DIR, 'deepcombi_selected_indices', disease), selected_indices)
         np.save(os.path.join(FINAL_RESULTS_DIR, 'deepcombi_raw_rm', disease), total_raw_rm)
 
+
     def test_save_scaled_averaged_rm(self, chrom_length):
 
         os.makedirs(os.path.join(FINAL_RESULTS_DIR, 'combi_avg_rm'), exist_ok=True)
@@ -104,6 +105,7 @@ class TestPipeline(object):
 
             assert not np.isnan(combi_raw_rm.sum())
             assert not np.isnan(deepcombi_raw_rm.sum())
+            assert np.absolute(deepcombi_raw_rm).sum() > 0 # Check for 0 only relevance mappings
 
             for chrom in range(1, 23):
                 chromo_length = chrom_length(disease, chrom)

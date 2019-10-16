@@ -25,63 +25,7 @@ from parameters_complete import disease_IDs, FINAL_RESULTS_DIR, real_pnorm_featu
 
 
 class TestWTCCCPlots(object):
-    def test_lrp(self, real_h5py_data, real_labels, real_labels_0based, real_pvalues, real_labels_cat, real_idx, rep,
-                 tmp_path):
-
-        fig, axes = plt.subplots(5, 1, sharex='col')
-
-        h5py_data = real_h5py_data(1)
-
-        x_2d = char_matrix_to_featmat(h5py_data, '2d', real_pnorm_feature_scaling)
-        x_3d = char_matrix_to_featmat(h5py_data, '3d', real_pnorm_feature_scaling)
-
-        g = best_params_montaez_2
-        g['n_snps'] = x_3d.shape[1]
-
-        model = create_montaez_dense_model_2(g)
-        model.fit(x=x_3d[real_idx.train],
-                  y=real_labels_cat[real_idx.train],
-                  validation_data=(x_3d[real_idx.test], real_labels_cat[real_idx.test]),
-                  epochs=g['epochs']
-                  )
-
-        model = iutils.keras.graph.model_wo_softmax(model)
-        analyzer = innvestigate.analyzer.LRPAlpha1Beta0(model)
-        weights = np.absolute(analyzer.analyze(x_3d).sum(0))
-
-        _, postprocessed_weights = postprocess_weights(
-            weights, real_top_k, filter_window_size, p_svm, real_p_pnorm_filter)
-
-        complete_pvalues = real_pvalues('CD', 1)
-        axes[0].plot(-np.log10(complete_pvalues))
-        axes[0].set_title('RPV')
-
-        # Plot distribution of relevance
-        axes[1].plot(np.absolute(weights).reshape(-1, 3).sum(1))
-        axes[1].set_title('Absolute relevance')
-
-        # Plot distribution of postprocessed vectors
-        axes[2].plot(postprocessed_weights)
-        axes[2].set_title('Postprocessed relevance')
-
-        # Plot distribution of svm weights
-        svm_weights = real_classifier.fit(x_2d, real_labels).coef_
-        axes[3].plot(np.absolute(svm_weights).reshape(-1, 3).sum(1))
-        axes[3].set_title('Absolute SVM weight')
-
-        _, postprocessed_svm_weights = postprocess_weights(
-            np.absolute(svm_weights), real_top_k, filter_window_size, p_svm, real_p_pnorm_filter)
-
-        axes[4].plot(postprocessed_svm_weights)
-        axes[4].set_title('Postprocessed SVM weight')
-
-        fig.savefig(os.path.join(IMG_DIR, 'manhattan-real.png'))
-
-
-
-
-
-
+    
     def test_generate_per_disease_manhattan_plots(self, real_pvalues, chrom_length):
         """ Plot manhattan figures of rpvt VS deepcombi, for one specific disease
         """
@@ -218,6 +162,10 @@ class TestWTCCCPlots(object):
 
         complete_pvalues = []
         n_snps = np.zeros(22)
+        svm_scaled_weights = np.load(os.path.join(FINAL_RESULTS_DIR, 'combi_scaled_rm', '{}.npy'.format(disease_id)))
+        dc_scaled_weights = np.load(
+            os.path.join(FINAL_RESULTS_DIR, 'deepcombi_scaled_rm', '{}.npy'.format(disease_id)))
+
         for i, chromo in enumerate(chromos):
 
             raw_pvalues = real_pvalues(disease_id, chromo)
@@ -231,17 +179,13 @@ class TestWTCCCPlots(object):
             offsets[i + 1] = offsets[i] + n_snps[i]
             middle_offset_history[i] = offsets[i] + int(n_snps[i] / 2)
 
-        complete_pvalues = np.array(complete_pvalues).flatten()
-
-        svm_scaled_weights = np.load(os.path.join(FINAL_RESULTS_DIR, 'combi_scaled_rm', '{}.npy'.format(disease_id)))
-        dc_scaled_weights = np.load(
-            os.path.join(FINAL_RESULTS_DIR, 'deepcombi_scaled_rm', '{}.npy'.format(disease_id)))
-
-        # Account for the chromosom's length
-        for i in range(22):
             svm_scaled_weights[offsets[i]:offsets[i+1]] = svm_scaled_weights[offsets[i]:offsets[i+1]] * np.sqrt(chrom_length(disease_id, i + 1))
             dc_scaled_weights[offsets[i]:offsets[i+1]] = dc_scaled_weights[offsets[i]:offsets[i+1]]*np.sqrt(chrom_length(disease_id, i+1))
 
+        complete_pvalues = np.array(complete_pvalues).flatten()
+
+        
+            
         combi_selected_pvalues = np.ones(len(complete_pvalues))
         combi_selected_pvalues[top_indices_combi] = complete_pvalues[top_indices_combi]
 
@@ -355,7 +299,7 @@ class TestWTCCCPlots(object):
 
             chrom_fig.savefig(os.path.join(FINAL_RESULTS_DIR, 'plots', 'global_manhattan.pdf'.format(disease_id)))
 
-    def test_generate_roc_recall_curves(self, real_pvalues):
+    def test_generate_roc_recall_curves(self, real_pvalues, chrom_length):
 
         combined_labels = pd.Series()
         combined_combi_pvalues = pd.DataFrame()
@@ -420,18 +364,29 @@ class TestWTCCCPlots(object):
             pvalues_peak_labels.loc[np.intersect1d(candidates_raw_pvalues_genome_peaks.index, tp_df.index)] = 1
             combined_labels = pd.concat([combined_labels, pvalues_peak_labels])
 
-            # SVM WEIGHTS
+            # SVM - DeepCOMBI WEIGHTS ++++++++
             combi_scaled_rm = np.load(os.path.join(FINAL_RESULTS_DIR, 'combi_scaled_rm', '{}.npy'.format(disease)))
+            deepcombi_scaled_rm = np.load(os.path.join(FINAL_RESULTS_DIR, 'deepcombi_scaled_rm', '{}.npy'.format(disease)))
+
+            # Take chromosom length into account
+            off = 0
+            for i in range(22):
+                l = chrom_length(disease,i+1)
+                combi_scaled_rm[off:off+l] = combi_scaled_rm[off:off+l]*np.sqrt(l)
+                deepcombi_scaled_rm[off:off+l] = deepcombi_scaled_rm[off:off+l]*np.sqrt(l)
+                off+=l
+
             combi_scaled_rm = pd.Series(data=combi_scaled_rm[candidates_raw_pvalues_genome_peaks.index],
                                              index=candidates_raw_pvalues_genome_peaks.index)
             combined_svm_scores = pd.concat([combined_svm_scores, combi_scaled_rm])
 
-            # DeepCombi WEIGHTS
-            deepcombi_scaled_rm = np.load(os.path.join(FINAL_RESULTS_DIR, 'deepcombi_scaled_rm', '{}.npy'.format(disease)))
             deepcombi_scaled_rm = pd.Series(
                 data=deepcombi_scaled_rm[candidates_raw_pvalues_genome_peaks.index],
                 index=candidates_raw_pvalues_genome_peaks.index)
             combined_deepcombi_scores = pd.concat([combined_deepcombi_scores, deepcombi_scaled_rm])
+            # ++++
+          
+
 
             # COMBI
             selected_combi_indices = np.load(

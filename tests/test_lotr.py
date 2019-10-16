@@ -176,9 +176,9 @@ class TestLOTR(object):
                 data.sort_values(by=['val_acc'], ascending=False, inplace=True)
                 best_hps = data[data['acc'] > 0.80].iloc[0].to_dict()
                 best_hps['epochs'] = 250
-                best_hps['hidden_neurons'] = 6
-                best_hps['lr'] = 1e-4
-                best_hps['l1_reg'] = 1e-5
+                #best_hps['hidden_neurons'] = 6
+                #best_hps['lr'] = 1e-4
+                #best_hps['l1_reg'] = 1e-5
 
                 for chromo in tqdm(range(1, 23)):
                     filename = os.path.join(FINAL_RESULTS_DIR, 'hyperparams', disease_id, 'chrom{}.p'.format(chromo))
@@ -211,7 +211,10 @@ class TestLOTR(object):
         hp = pickle.load(open(os.path.join(FINAL_RESULTS_DIR, 'hyperparams', disease_id, 'chrom{}.p'.format(chrom)), 'rb'))
         hp['epochs'] = int(hp['epochs'])
         hp['n_snps'] = int(fm.shape[1])
-
+        hp['epochs'] = 250
+        hp['hidden_neurons'] = 6
+        hp['lr'] = 1e-4
+        hp['l1_reg'] = 1e-5 # TODO change me back
         # Train
         os.makedirs(os.path.join(FINAL_RESULTS_DIR, 'csv_logs', disease_id), exist_ok=True)
 
@@ -220,7 +223,7 @@ class TestLOTR(object):
                     y=labels_cat,
                     epochs=hp['epochs'],
                     callbacks=[
-                        CSVLogger(os.path.join(FINAL_RESULTS_DIR, 'csv_logs', disease_id, '{}'.format(chrom)))
+                        #CSVLogger(os.path.join(FINAL_RESULTS_DIR, 'csv_logs', disease_id, '{}'.format(chrom)))
                     ],
                     verbose=0)
         filename = os.path.join(FINAL_RESULTS_DIR, 'trained_models', disease_id, 'model{}.h5'.format(chrom))

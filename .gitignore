@@ -24,3 +24,5 @@ qsub_output/
 final_results/
 talos_chrom*
 .pycharm_helpers/
+CROHN_C1_TRAINED_BCKP/trained_models/
+CROHN_C1_TRAINED_BCKP/csv_logs/
