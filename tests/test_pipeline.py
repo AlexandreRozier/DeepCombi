@@ -25,13 +25,12 @@ class TestPipeline(object):
                 scores += data.tail(1)['val_acc'].values.tolist()
             np.save(os.path.join(FINAL_RESULTS_DIR, 'accuracies', disease, 'deepcombi'), scores)
 
-    def test_save_combi_scores_rm_and_indices(self, real_h5py_data, real_labels, chrom_length):
+    def test_save_combi_rm(self, real_h5py_data, real_labels, chrom_length):
 
         """ Extract indices gotten from combi
         """
         disease = disease_IDs[int(os.environ['SGE_TASK_ID']) - 1]
         offset = 0
-        selected_indices = []
         total_raw_rm = np.empty((0, 3))
         labels = real_labels(disease)
 
@@ -39,30 +38,24 @@ class TestPipeline(object):
             data = real_h5py_data(disease, chromo)
             fm_2D = char_matrix_to_featmat(data, '2d', real_pnorm_feature_scaling)
             # Save weights + indices
-            selected_idx, _, raw_rm = combi_method(real_classifier, data, fm_2D,
+            _, _, raw_rm = combi_method(real_classifier, data, fm_2D,
                                                    labels, filter_window_size, real_p_pnorm_filter,
                                                    p_svm, real_top_k)
 
-            indices = offset + selected_idx
 
-            selected_indices += indices.tolist()
             offset += chrom_length(disease, chromo)
             total_raw_rm = np.append(total_raw_rm, raw_rm, axis=0)
 
             del data, fm_2D
 
-        os.makedirs(os.path.join(FINAL_RESULTS_DIR, 'combi_selected_indices'), exist_ok=True)
         os.makedirs(os.path.join(FINAL_RESULTS_DIR, 'combi_raw_rm'), exist_ok=True)
-
-        np.save(os.path.join(FINAL_RESULTS_DIR, 'combi_selected_indices', disease), selected_indices)
         np.save(os.path.join(FINAL_RESULTS_DIR, 'combi_raw_rm', disease), total_raw_rm)
 
-    def test_save_deepcombi_rm_and_indices(self, real_h5py_data, real_labels):
+    def test_save_deepcombi_rm(self, real_h5py_data, real_labels):
         """ Extract rm and selected indices obtained through deepcombi
         """
         disease = disease_IDs[int(os.environ['SGE_TASK_ID']) - 1]
         offset = 0
-        selected_indices = []
         total_raw_rm = np.empty((0, 3))
 
         for chromo in tqdm(range(1, 23)):
@@ -71,18 +64,14 @@ class TestPipeline(object):
             data = real_h5py_data(disease, chromo)
             fm = char_matrix_to_featmat(data, '3d', real_pnorm_feature_scaling)
             labels = real_labels(disease)
-            idx, _, raw_rm = deepcombi_method(model, data, fm, labels, filter_window_size, real_p_pnorm_filter,
+            _, _, raw_rm = deepcombi_method(model, data, fm, labels, filter_window_size, real_p_pnorm_filter,
                                               p_svm, top_k=real_top_k)
-            indices = offset + idx
+            
             total_raw_rm = np.append(total_raw_rm, raw_rm, axis=0)
-            selected_indices += indices.tolist()
             offset += fm.shape[1]
             del data, fm, model
 
-        os.makedirs(os.path.join(FINAL_RESULTS_DIR, 'deepcombi_selected_indices'), exist_ok=True)
         os.makedirs(os.path.join(FINAL_RESULTS_DIR, 'deepcombi_raw_rm'), exist_ok=True)
-
-        np.save(os.path.join(FINAL_RESULTS_DIR, 'deepcombi_selected_indices', disease), selected_indices)
         np.save(os.path.join(FINAL_RESULTS_DIR, 'deepcombi_raw_rm', disease), total_raw_rm)
 
 
