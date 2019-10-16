@@ -25,7 +25,9 @@ from parameters_complete import disease_IDs, FINAL_RESULTS_DIR, real_pnorm_featu
 
 
 class TestWTCCCPlots(object):
-    
+
+
+
     def test_generate_per_disease_manhattan_plots(self, real_pvalues, chrom_length):
         """ Plot manhattan figures of rpvt VS deepcombi, for one specific disease
         """
@@ -184,8 +186,8 @@ class TestWTCCCPlots(object):
 
         complete_pvalues = np.array(complete_pvalues).flatten()
 
-        
-            
+
+
         combi_selected_pvalues = np.ones(len(complete_pvalues))
         combi_selected_pvalues[top_indices_combi] = complete_pvalues[top_indices_combi]
 
@@ -216,7 +218,7 @@ class TestWTCCCPlots(object):
         chrom_fig.savefig(os.path.join(FINAL_RESULTS_DIR, 'plots', '{}-lrp.png'.format(disease_id)))
 
     def test_generate_global_manhattan_plots(self, real_pvalues):
-        """ Plot manhattan figures of rpvt VS deepcombi, for one specific disease
+        """ Plot manhattan figures of RPVT VS DeepCOMBI, for one specific disease
         """
         chrom_fig, axes = plt.subplots(7, 3, sharex='col')
         chrom_fig.tight_layout()
@@ -385,7 +387,7 @@ class TestWTCCCPlots(object):
                 index=candidates_raw_pvalues_genome_peaks.index)
             combined_deepcombi_scores = pd.concat([combined_deepcombi_scores, deepcombi_scaled_rm])
             # ++++
-          
+
 
 
             # COMBI
@@ -487,6 +489,7 @@ class TestWTCCCPlots(object):
 
         plt.legend()
         fig.savefig(os.path.join(FINAL_RESULTS_DIR, 'plots', 'precision-tp.png'))
+
 
     def test_generate_val_acc_graph(self):
         rows_list = []

@@ -1,7 +1,6 @@
 import matplotlib
 
 matplotlib.use('Agg')
-import matplotlib.pyplot as plt
 
 import os
 import pandas as pd
@@ -10,8 +9,8 @@ import numpy as np
 import tensorflow
 from models import create_montaez_dense_model_2, best_params_montaez_2
 from keras.callbacks import TensorBoard, ReduceLROnPlateau, CSVLogger
-from helpers import char_matrix_to_featmat, postprocess_weights, get_available_gpus, postprocess_weights_without_avg
-from parameters_complete import FINAL_RESULTS_DIR, IMG_DIR, real_pnorm_feature_scaling, real_p_pnorm_filter, filter_window_size, real_top_k, p_svm
+from helpers import char_matrix_to_featmat, get_available_gpus
+from parameters_complete import FINAL_RESULTS_DIR, real_pnorm_feature_scaling, filter_window_size, real_top_k
 from parameters_complete import disease_IDs
 
 from keras import backend as K
@@ -19,9 +18,6 @@ from combi import permuted_deepcombi_method, real_classifier
 from tqdm import tqdm
 import talos
 from talos.utils.gpu_utils import parallel_gpu_jobs
-
-import innvestigate
-import innvestigate.utils as iutils
 
 TEST_PERCENTAGE = 0.20
 
