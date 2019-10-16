@@ -66,9 +66,9 @@ real_pnorm_feature_scaling = 6
 
 # USED TO APPLY SCALING ON WEIGHTS DURING THE POSTPROCESSING STEP 
 p_pnorm_filter = 2 
-real_p_pnorm_filter =5 
+real_p_pnorm_filter = 2
+real_p_pnorm_filter_mtest =6 
 
-filter_window_size_mtest = 9 # 1-41, odd!!!
 
 p_svm = 2 # Used on SVM weights before applying postprocessing function 
 svm_epsilon = 1e-3

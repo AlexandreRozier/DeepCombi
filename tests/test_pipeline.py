@@ -25,7 +25,7 @@ class TestPipeline(object):
                 scores += data.tail(1)['val_acc'].values.tolist()
             np.save(os.path.join(FINAL_RESULTS_DIR, 'accuracies', disease, 'deepcombi'), scores)
 
-    def test_save_combi_scores_rm_and_indices(self, real_h5py_data, real_labels, real_idx):
+    def test_save_combi_scores_rm_and_indices(self, real_h5py_data, real_labels, chrom_length):
 
         """ Extract indices gotten from combi
         """
@@ -34,7 +34,7 @@ class TestPipeline(object):
         selected_indices = []
         total_raw_rm = np.empty((0, 3))
         labels = real_labels(disease)
-
+        
         for chromo in tqdm(range(1, 23)):
             data = real_h5py_data(disease, chromo)
             fm_2D = char_matrix_to_featmat(data, '2d', real_pnorm_feature_scaling)
@@ -47,7 +47,7 @@ class TestPipeline(object):
             indices = offset + selected_idx
 
             selected_indices += indices.tolist()
-            offset += int(fm_2D.shape[1] / 3)
+            offset += chrom_length(disease,chromo)
             total_raw_rm = np.append(total_raw_rm, raw_rm, axis=0)
 
             del data, fm_2D
@@ -64,6 +64,8 @@ class TestPipeline(object):
         disease = disease_IDs[int(os.environ['SGE_TASK_ID']) - 1]
         offset = 0
         selected_indices = []
+        total_raw_rm = np.empty((0, 3))
+
         for chromo in tqdm(range(1, 23)):
             model = load_model(os.path.join(FINAL_RESULTS_DIR, 'trained_models', disease, 'model{}.h5'.format(chromo)))
 
@@ -74,7 +76,6 @@ class TestPipeline(object):
                                               p_svm, top_k=real_top_k)
             indices = offset + idx
             total_raw_rm = np.append(total_raw_rm, raw_rm, axis=0)
-            scaled_rm = postprocess_weights_without_avg(raw_rm, p_svm)
             selected_indices += indices.tolist()
             offset += fm.shape[1]
             del data, fm, model
