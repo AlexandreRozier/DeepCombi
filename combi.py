@@ -15,8 +15,8 @@ import innvestigate
 import innvestigate.utils as iutils
 from keras.utils import to_categorical
 
-toy_classifier = svm.LinearSVC(C=Cs, penalty='l2', tol=svm_epsilon, verbose=0, dual=True)
-real_classifier = svm.LinearSVC(C=real_Cs, penalty='l2', tol=svm_epsilon, verbose=0, dual=True)
+toy_classifier = svm.LinearSVC(C=Cs, penalty='l2', loss='hinge', tol=svm_epsilon,dual=True, verbose=0)
+real_classifier = svm.LinearSVC(C=real_Cs,penalty='l2', loss='hinge', tol=svm_epsilon,dual=True, verbose=0)
 
 
 
