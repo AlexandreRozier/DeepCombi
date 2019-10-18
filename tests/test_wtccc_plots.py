@@ -98,6 +98,10 @@ class TestWTCCCPlots(object):
             for i, offset in enumerate(offsets[:-1]):
                 color[offset:offsets[i + 1]] = [0, 0, 0.7] if alt else [0.4, 0.4, 0.8]
                 alt = not alt
+
+            c_rm_ax.scatter(range(len(complete_pvalues)), svm_avg_weights, c=color, marker='x')
+            deepc_rm_ax.scatter(range(len(complete_pvalues)), dc_avg_weights, c=color, marker='x')
+
             color[informative_idx] = [0, 1, 0]
 
             # Plot
@@ -106,8 +110,6 @@ class TestWTCCCPlots(object):
                                               c=color, marker='x')
             c_selected_pvalues_ax.scatter(range(len(complete_pvalues)), -np.log10(combi_selected_pvalues),
                                           c=color, marker='x')
-            c_rm_ax.scatter(range(len(complete_pvalues)), svm_avg_weights, c=color, marker='x')
-            deepc_rm_ax.scatter(range(len(complete_pvalues)), dc_avg_weights, c=color, marker='x')
 
             # Set ticks
             plt.setp(raw_pvalues_ax, xticks=middle_offset_history, xticklabels=range(1, 23))
@@ -191,12 +193,14 @@ class TestWTCCCPlots(object):
         for i, offset in enumerate(offsets[:-1]):
             color[offset:offsets[i + 1]] = [0, 0, 0.7] if alt else [0.4, 0.4, 0.8]
             alt = not alt
-        color[informative_idx] = [0, 1, 0]
 
         # Plot
-        raw_pvalues_ax.scatter(range(len(complete_pvalues)), -np.log10(complete_pvalues), c=color, marker='x')
         c_rm_ax.scatter(range(len(complete_pvalues)), svm_scaled_weights, c=color, marker='x', )
         deepc_rm_ax.scatter(range(len(complete_pvalues)), dc_scaled_weights, c=color, marker='x')
+
+        color[informative_idx] = [0, 1, 0]
+        raw_pvalues_ax.scatter(range(len(complete_pvalues)), -np.log10(complete_pvalues), c=color, marker='x')
+
 
         # Set ticks
         plt.setp(raw_pvalues_ax, xticks=middle_offset_history, xticklabels=range(1, 23))
@@ -423,17 +427,26 @@ class TestWTCCCPlots(object):
         deepcombi_tp = deepcombi_tpr * (combined_labels.values == 1).sum()
         deepcombi_fp = deepcombi_fpr * (combined_labels.values != 1).sum()
 
+
         rpvt_fpr, rpvt_tpr, _ = roc_curve(combined_labels.values,
                                           -np.log10(combined_rpvt_scores.pvalue.values))
         rpvt_tp = rpvt_tpr * (combined_labels.values == 1).sum()
         rpvt_fp = rpvt_fpr * (combined_labels.values != 1).sum()
 
+        # CURVES must stop somewhere
+        combi_fp = combi_fp[combi_fp < 80]
+        combi_tp = combi_tp[:len(combi_fp)]
+        deepcombi_fp = deepcombi_fp[deepcombi_fp < 80]
+        deepcombi_tp = deepcombi_tp[:len(deepcombi_fp)]
+
         fig = plt.figure()
+
         plt.plot(deepcombi_fp, deepcombi_tp, label='DeepCOMBI')
+
         plt.plot(combi_fp, combi_tp, label='COMBI')
         plt.plot(rpvt_fp, rpvt_tp, label='RPVT')
-        plt.plot(svm_fp, svm_tp, label='SVM weights', linestyle='--')
-        plt.plot(dc_rm_fp, dc_rm_tp, label='DeepCOMBI weights', linestyle='--')
+        #plt.plot(svm_fp, svm_tp, label='SVM weights', linestyle='--')
+        #plt.plot(dc_rm_fp, dc_rm_tp, label='DeepCOMBI weights', linestyle='--')
         plt.xlabel('FP')
         plt.ylabel('TP')
         plt.xlim(0, 80)
@@ -464,12 +477,18 @@ class TestWTCCCPlots(object):
                                                                   combined_deepcombi_scores.values)
         dc_rm_tp = dc_rm_recall * (combined_labels.values == 1).sum()
 
+
+        combi_tp = combi_tp[combi_tp < 40]
+        combi_precision = combi_precision[-len(combi_tp):]
+        deepcombi_tp = deepcombi_tp[deepcombi_tp < 40]
+        deepcombi_precision = deepcombi_precision[-len(deepcombi_tp):]
+
         fig = plt.figure()
         plt.plot(deepcombi_tp, deepcombi_precision, label='DeepCOMBI')
         plt.plot(combi_tp, combi_precision, label='COMBI')
         plt.plot(rpvt_tp, rpvt_precision, label='RPVT')
-        plt.plot(svm_tp, svm_precision, label='SVM', linestyle='--')
-        plt.plot(dc_rm_tp, dc_rm_precision, label='DeepCOMBI weights', linestyle='--')
+        #plt.plot(svm_tp, svm_precision, label='SVM', linestyle='--')
+        #plt.plot(dc_rm_tp, dc_rm_precision, label='DeepCOMBI weights', linestyle='--')
         plt.xlabel('TP')
         plt.ylabel('Precision')
         plt.xlim(0, 40)

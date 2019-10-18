@@ -196,17 +196,16 @@ def char_matrix_to_featmat(data, embedding_type='2d', norm_feature_scaling=pnorm
     f_m = f_m.astype(np.double)
 
     # Rescale feature matrix
-    f_m -= np.mean(f_m, axis=0)
-    stddev = (np.mean(np.abs(f_m)**norm_feature_scaling, axis=0)
-            * f_m.shape[1])**(1.0/norm_feature_scaling)
+    f_m -= np.mean(f_m, dtype=np.float64, axis=0) # centering
+    stddev = ((np.abs(f_m)**norm_feature_scaling).mean(axis=0) * f_m.shape[1])**(1.0/norm_feature_scaling)
     
     # Safe division
     f_m = np.divide(f_m, stddev, out=np.zeros_like(f_m), where=stddev!=0)
 
     # Reshape Feature matrix
-    if(embedding_type == '2d'):
+    if embedding_type == '2d':
         pass
-    elif(embedding_type == '3d'):
+    elif embedding_type == '3d':
         f_m = np.reshape(f_m, (n_subjects, num_snp3, 3))
 
     return f_m.astype(float)

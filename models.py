@@ -68,7 +68,23 @@ def create_montavon_conv_model(params):
 
         return model
 
+def create_mrcnn_model(params):
 
+    model = Sequential()
+    model.add(Conv1D(activation='relu',
+                    input_shape=(params['n_snps'], 3),
+                    filters=1,
+                    strides=1,
+                    kernel_size=3,
+                    kernel_regularizer=l1(params['l1_reg']))
+              )
+
+    model.add(Conv1D(activation='relu',
+                     filters=1,
+                     strides=1,
+                     kernel_size=3,
+                     kernel_regularizer=l1(params['l1_reg']))
+              )
 best_convdense_params = {
     'epochs': 0,
     'kernel_nb':32,

@@ -21,8 +21,14 @@ tests/talos_output
 hps_results/
 qsub_errors/
 qsub_output/
-final_results/
+HPPlus_DENSE/
 talos_chrom*
 .pycharm_helpers/
 CROHN_C1_TRAINED_BCKP/trained_models/
 CROHN_C1_TRAINED_BCKP/csv_logs/
+/CROHN_C1_TRAINED_BCKP/combi_avg_rm/
+/CROHN_C1_TRAINED_BCKP/combi_selected_indices/
+/CROHN_C1_TRAINED_BCKP/combi_scaled_rm/
+/CROHN_C1_TRAINED_BCKP/deepcombi_avg_rm/
+/CROHN_C1_TRAINED_BCKP/deepcombi_scaled_rm/
+/CROHN_C1_TRAINED_BCKP/deepcombi_selected_indices/

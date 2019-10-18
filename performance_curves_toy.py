@@ -183,7 +183,10 @@ fwer['combi'] = np.load("/home/hx/Work/Masterarbeit/numpy_arrays_2/combi-fwer-6.
 
 
 fig, ax = plt.subplots(1,1)
-
+tpr['31'] = tpr['31'][tpr['31'] < 1]
+precision['31'] = precision['31'][:len(tpr['31'])]
+tpr['combi'] = tpr['combi'][tpr['combi'] < 1]
+precision['combi'] = precision['combi'][:len(tpr['combi'])]
 ax.plot(tpr['31'], precision['31'],'x-', tpr['rpvt'], precision['rpvt'],'x-', tpr['combi'],
         precision['combi'],'x-')
 
@@ -196,6 +199,7 @@ ax.figure.savefig("/home/hx/Work/Masterarbeit/report/report/lrp-combi-tpr-fwer.p
 
 # TPR/FWER
 fig, ax = plt.subplots(1,1)
+
 ax.plot(fwer['31'], tpr['31'],'x-', fwer['rpvt'], tpr['rpvt'],'x-', fwer['combi'],
         tpr['combi'],'x-')
 ax.set_xlim(0, 0.1)
