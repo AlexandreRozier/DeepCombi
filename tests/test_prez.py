@@ -1,15 +1,14 @@
-import numpy as np
-import os 
-from combi import toy_classifier
-import matplotlib.pyplot as plt
-from parameters_complete import IMG_DIR
-import tensorflow
+import os
+
 import innvestigate
 import innvestigate.utils as iutils
-from joblib import Parallel, delayed
+import matplotlib.pyplot as plt
+import numpy as np
 from keras.callbacks import ReduceLROnPlateau
-from models import  create_montaez_dense_model_2
-from parameters_complete import ttbr
+
+from combi import toy_classifier
+from models import create_montaez_dense_model
+from parameters_complete import IMG_DIR
 
 # use LaTeX fonts in the plot
 plt.rc('text', usetex=True)
@@ -66,7 +65,7 @@ class TestPrez(object):
         y_0b = labels_cat['0']
         idx = indices['0']
 
-        model = create_montaez_dense_model_2(best_params_montaez_2)
+        model = create_montaez_dense_model(best_params_montaez_2)
         model.fit(x=x_3d[idx.train],
             y=y_0b[idx.train],
             validation_data=(x_3d[idx.test], y_0b[idx.test]),

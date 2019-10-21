@@ -15,7 +15,8 @@ diseases = ['Crohns disease','Bipolar disorder', 'Coronary artery disease','Hype
      
 
 ROOT_DIR = os.environ['ROOT_DIR']
-DATA_DIR = os.path.join(ROOT_DIR,'data')
+SYN_DATA_DIR = os.path.join(ROOT_DIR, 'data', 'synthetic')
+REAL_DATA_DIR = os.path.join(ROOT_DIR,'data','WTCCC')
 TEST_DIR = os.path.join(ROOT_DIR,'tests')
 IMG_DIR = os.path.join(ROOT_DIR,'img')
 TALOS_OUTPUT_DIR = os.path.join(TEST_DIR,'talos_output')
@@ -23,7 +24,8 @@ PARAMETERS_DIR = os.path.join(TEST_DIR,'parameters')
 SAVED_MODELS_DIR = os.path.join(TEST_DIR,'exported_models')
 TB_DIR = os.path.join(TEST_DIR,'exported_models')
 NUMPY_ARRAYS = os.path.join(ROOT_DIR,'numpy_arrays')
-FINAL_RESULTS_DIR = os.path.join(ROOT_DIR,'CROHN_C1_TRAINED_BCKP')
+FINAL_RESULTS_DIR = os.path.join(ROOT_DIR,'MULTIPLE_TOWERS')
+
 ########
 ttbr = 6
 n_subjects= 300  
@@ -53,7 +55,7 @@ svm_rep_permtest = 1
 Cs= 0.0022  
 real_Cs= 1e-5
 
-seed = 666
+seed = 6666 # Satan helps us
 random_state = np.random.RandomState(seed)
 
 

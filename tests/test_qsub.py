@@ -1,22 +1,15 @@
-
-import math
 import os
 
-import tensorflow 
-from helpers import chi_square, h5py_to_featmat, EnforceNeg, generate_name_from_params
 import keras
+
+from helpers import EnforceNeg, generate_name_from_params
+
 keras.constraints.EnforceNeg = EnforceNeg # Absolutely crucial
 
 import numpy as np
-from tqdm import tqdm
-import pandas as pd
 import pickle
-import time
-from sklearn.model_selection import train_test_split, KFold
 
-from parameters_complete import (Cs, filter_window_size,
-                                 p_pnorm_filter,
-                                 svm_rep, TEST_DIR, TALOS_OUTPUT_DIR, DATA_DIR, PARAMETERS_DIR)
+from parameters_complete import (TEST_DIR, SYN_DATA_DIR, PARAMETERS_DIR)
 from models import  create_dense_model
 
 class TestQsub(object):
@@ -39,8 +32,8 @@ class TestQsub(object):
             'epochs': [500],
             #'dropout_rate': [0],
             'batch_size': np.linspace(32, 500, 10),
-            'feature_matrix_path': [os.path.join(DATA_DIR,'3d_feature_matrix.npy')],
-            'y_path':[os.path.join(DATA_DIR,'syn_labels.h5py')],
+            'feature_matrix_path': [os.path.join(SYN_DATA_DIR, '3d_feature_matrix.npy')],
+            'y_path':[os.path.join(SYN_DATA_DIR, 'syn_labels.h5py')],
             'verbose':[1],
             #'decay':[10e-6],
             #'momentum':[0],

@@ -7,7 +7,7 @@ import pandas as pd
 import pickle
 import numpy as np
 import tensorflow
-from models import create_montaez_dense_model_2, best_params_montaez_2
+from models import create_montaez_dense_model, best_params_montaez
 from keras.callbacks import TensorBoard, ReduceLROnPlateau, CSVLogger
 from helpers import char_matrix_to_featmat, get_available_gpus
 from parameters_complete import FINAL_RESULTS_DIR, real_pnorm_feature_scaling, filter_window_size, real_top_k
@@ -51,7 +51,7 @@ class TestLOTR(object):
             idx = real_idx(disease)
             params_space = {
                 'n_snps': [fm.shape[1]],
-                'epochs': [400],
+                'epochs': [600],
                 'dropout_rate': [0.3],
                 'l1_reg': list(np.logspace(-6, -2, 5)),
                 'l2_reg': [0],
@@ -60,7 +60,7 @@ class TestLOTR(object):
             }
 
             def talos_wrapper(x, y, x_val, y_val, params):
-                model = create_montaez_dense_model_2(params)
+                model = create_montaez_dense_model(params)
                 out = model.fit(x=x,
                                 y=y,
                                 validation_data=(x_val, y_val),
@@ -87,7 +87,7 @@ class TestLOTR(object):
                     minimize_loss=False,
                     params=params_space,
                     model=talos_wrapper,
-                    experiment_name='final_results/talos/'+disease+'/'+str(chrom))
+                    experiment_name='final_results/talos/'+ disease + '/'+str(chrom))
 
     def test_permutations(self, real_h5py_data, real_labels, real_labels_0based, real_labels_cat, real_idx, alphas,
                           alphas_EV):
@@ -106,10 +106,10 @@ class TestLOTR(object):
         alpha_sig = float(alphas[chrom])
         alpha_sig_EV = float(alphas_EV[chrom])
         # hp = pickle.load(open(os.path.join(FINAL_RESULTS_DIR,'hyperparams','chrom{}.p'.format(chrom)),'rb'))
-        hp = best_params_montaez_2
+        hp = best_params_montaez
         hp['n_snps'] = fm.shape[1]
         with tensorflow.compat.v1.Session().as_default():
-            model = create_montaez_dense_model_2(hp)
+            model = create_montaez_dense_model(hp)
             model.fit(x=fm[real_idx.train],
                       y=real_labels_cat[real_idx.train],
                       validation_data=(fm[real_idx.test], real_labels_cat[real_idx.test]),
@@ -141,7 +141,7 @@ class TestLOTR(object):
         hp = pickle.load(open(os.path.join(FINAL_RESULTS_DIR, 'hyperparams', 'CD', 'chrom3.p'), 'rb'))
         hp['epochs'] = int(hp['epochs'])
 
-        model = create_montaez_dense_model_2(hp)
+        model = create_montaez_dense_model(hp)
 
         model.fit(x=fm[real_idx.train],
                   y=real_labels_cat[real_idx.train],
@@ -214,7 +214,7 @@ class TestLOTR(object):
         # Train
         os.makedirs(os.path.join(FINAL_RESULTS_DIR, 'csv_logs', disease_id), exist_ok=True)
 
-        model = create_montaez_dense_model_2(hp)
+        model = create_montaez_dense_model(hp)
         model.fit(x=fm,
                     y=labels_cat,
                     epochs=hp['epochs'],
@@ -226,5 +226,53 @@ class TestLOTR(object):
         os.makedirs(os.path.dirname(filename), exist_ok=True)
         model.save(filename)
         K.clear_session()
-        del data, fm, model 
+        del data, fm, model
 
+    def test_hpsearch_crohn(self, real_h5py_data, real_labels_cat, real_idx):
+        """ Runs HP search for a subset of chromosomes
+        """
+
+        disease = 'CD'  # disease_IDs[int(os.environ['SGE_TASK_ID'])-1]
+
+        for chrom in [3]:  # range(1,23):
+
+
+            data = real_h5py_data(disease, chrom)
+            fm = char_matrix_to_featmat(data, '3d', real_pnorm_feature_scaling)
+            labels_cat = real_labels_cat(disease)
+            idx = real_idx(disease)
+            params_space = {
+                'n_snps': [fm.shape[1]],
+                'epochs': [600],
+                'dropout_rate': [0.3],
+                'l1_reg': list(np.logspace(-6, -2, 5)),
+                'l2_reg': [0],
+                'hidden_neurons': [3, 6, 10],
+                'lr': list(np.logspace(-4, -2, 3)),
+            }
+
+            def talos_wrapper(x, y, x_val, y_val, params):
+                model = create_montaez_dense_model(params)
+                out = model.fit(x=x,
+                                y=y,
+                                validation_data=(x_val, y_val),
+                                epochs=params['epochs'],
+                                verbose=0)
+                return out, model
+
+            nb_gpus = get_available_gpus()
+
+            if nb_gpus == 1:
+                parallel_gpu_jobs(0.33)
+
+            os.makedirs(os.path.join(FINAL_RESULTS_DIR, 'talos', disease, str(chrom)), exist_ok=True)
+
+            talos.Scan(x=fm[idx.train],
+                       y=labels_cat[idx.train],
+                       x_val=fm[idx.test],
+                       y_val=labels_cat[idx.test],
+                       reduction_method='gamify',
+                       minimize_loss=False,
+                       params=params_space,
+                       model=talos_wrapper,
+                       experiment_name=os.path.join(FINAL_RESULTS_DIR,'talos',disease, str(chrom)))

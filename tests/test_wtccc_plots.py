@@ -16,7 +16,7 @@ import pandas as pd
 from tqdm import tqdm
 import numpy as np
 
-from parameters_complete import disease_IDs, FINAL_RESULTS_DIR, DATA_DIR, ROOT_DIR
+from parameters_complete import disease_IDs, FINAL_RESULTS_DIR, REAL_DATA_DIR, ROOT_DIR
 
 
 class TestWTCCCPlots(object):
@@ -306,7 +306,7 @@ class TestWTCCCPlots(object):
 
         for disease in tqdm(disease_IDs):
 
-            queries = pd.read_csv(os.path.join(DATA_DIR, 'queries', '{}.txt'.format(disease)), delim_whitespace=True)
+            queries = pd.read_csv(os.path.join(REAL_DATA_DIR, 'queries', '{}.txt'.format(disease)), delim_whitespace=True)
 
             # Preselects indices of interest (at PEAKS, on pvalues smaller than 1e-4)
             offset = 0
@@ -348,7 +348,7 @@ class TestWTCCCPlots(object):
             pvalues_peaks_representatives['rs_identifier'] = queries.rs_identifier.tolist()
 
             # CREATE GROUND TRUTH LABELS
-            tp_df = pd.read_csv(os.path.join(DATA_DIR, 'results', '{}.txt'.format(disease)), delim_whitespace=True)
+            tp_df = pd.read_csv(os.path.join(REAL_DATA_DIR, 'results', '{}.txt'.format(disease)), delim_whitespace=True)
             tp_df = tp_df.rename(columns={"#SNP_A": "rs_identifier"})
             tp_df = pvalues_peaks_representatives.reset_index().merge(tp_df,
                                                                       on='rs_identifier',

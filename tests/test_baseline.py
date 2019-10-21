@@ -1,22 +1,19 @@
 import os
-from sklearn import svm
-from sklearn.tree import DecisionTreeClassifier
-from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import roc_auc_score
-import numpy as np
-import tensorflow as tensorflow
-from keras.models import Sequential
-from keras.layers import Dense, Flatten, Activation
-from keras.callbacks import EarlyStopping, ReduceLROnPlateau
-from keras.regularizers import l1
-from parameters_complete import (Cs, PARAMETERS_DIR, DATA_DIR,TEST_DIR,IMG_DIR, n_total_snps, seed)
-from models import DataGenerator
-from helpers import EnforceNeg, generate_name_from_params
 
-from tqdm import tqdm
 import innvestigate
 import innvestigate.utils as iutils
 import matplotlib
+import numpy as np
+from keras.layers import Dense, Flatten
+from keras.models import Sequential
+from sklearn import svm
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import roc_auc_score
+from sklearn.tree import DecisionTreeClassifier
+from tqdm import tqdm
+
+from parameters_complete import (Cs, PARAMETERS_DIR, IMG_DIR, seed)
+
 matplotlib.use('Agg')
 
 from matplotlib import pyplot as plt
@@ -75,7 +72,7 @@ class TestBaselines(object):
 
         features, labels = f_and_l(embedding_type="2d", categorical=False)
 
-        toy_classifier = DecisionTreetoy_classifier(random_state=seed)
+        toy_classifier = DecisionTreeClassifier(random_state=seed)
         toy_classifier.fit(features.train, labels.train)
         score = toy_classifier.score(features.test, labels.test)
 

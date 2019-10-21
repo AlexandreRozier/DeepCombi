@@ -11,7 +11,7 @@ from combi import combi_method, permuted_combi_method, toy_classifier
 from tqdm import tqdm
 from joblib import Parallel, delayed
 from sklearn import svm
-from parameters_complete import thresholds, IMG_DIR, DATA_DIR, Cs, n_total_snps, inform_snps, noise_snps, \
+from parameters_complete import thresholds, IMG_DIR, SYN_DATA_DIR, Cs, n_total_snps, inform_snps, noise_snps, \
     real_pnorm_feature_scaling
 from parameters_complete import svm_epsilon, filter_window_size, top_k, ttbr as ttbr, random_state, alpha_sig_toy
 
@@ -21,7 +21,7 @@ class TestCombi(object):
     
 
     def test_svm_accuracy(self, h5py_data):
-        with h5py.File(DATA_DIR+ '/bett_labels.h5py', 'r') as l, h5py.File(DATA_DIR+ '/bett_data.h5py', 'r') as d :
+        with h5py.File(SYN_DATA_DIR + '/bett_labels.h5py', 'r') as l, h5py.File(SYN_DATA_DIR + '/bett_data.h5py', 'r') as d :
             b_labels =  l['X'][:]
             b_data =  d['X'][:]
         toy_classifier = svm.LinearSVC(C=Cs, penalty='l2', tol=svm_epsilon, verbose=0, dual=True)
@@ -37,7 +37,7 @@ class TestCombi(object):
             
             n = len(list(h5py_data.keys()))
             train_accuracies = np.zeros(n)
-            labels = generate_syn_phenotypes(root_path=DATA_DIR, ttbr=ttbr)
+            labels = generate_syn_phenotypes(root_path=SYN_DATA_DIR, ttbr=ttbr)
             for i, key in enumerate(list(h5py_data.keys())):
                 featmat = h5py_to_featmat( h5py_data[key][:] )
                 toy_classifier.fit(featmat, labels[key])
@@ -75,7 +75,7 @@ class TestCombi(object):
         h5py_data = h5py_data['0'][:]
 
         fig, axes = plt.subplots(len(ttbrs) + 1, sharex='col')
-        with h5py.File(DATA_DIR+ '/bett_labels.h5py', 'r') as l, h5py.File(DATA_DIR+ '/bett_data.h5py', 'r') as d :
+        with h5py.File(SYN_DATA_DIR + '/bett_labels.h5py', 'r') as l, h5py.File(SYN_DATA_DIR + '/bett_data.h5py', 'r') as d :
             b_labels =  l['X'][:]
             b_data =  d['X'][:]
         
@@ -88,7 +88,7 @@ class TestCombi(object):
 
         for i, ttbr in enumerate(ttbrs):
             print('Using tbrr={}'.format(ttbr))
-            labels = generate_syn_phenotypes(root_path=DATA_DIR, ttbr=ttbr)['0']
+            labels = generate_syn_phenotypes(root_path=SYN_DATA_DIR, ttbr=ttbr)['0']
 
             complete_pvalues = chi_square(h5py_data, labels)
 
@@ -107,7 +107,7 @@ class TestCombi(object):
         fig, axes = plt.subplots(max_runs, sharex='col', sharey='col')
         fig.set_size_inches(18.5, 10.5)
         print('Using tbrr={}'.format(ttbr))
-        labels = generate_syn_phenotypes(root_path=DATA_DIR, ttbr=ttbr)
+        labels = generate_syn_phenotypes(root_path=SYN_DATA_DIR, ttbr=ttbr)
         for i,key in enumerate(list(h5py_data.keys())):
             if i >= max_runs:
                 break
@@ -149,7 +149,7 @@ class TestCombi(object):
 
         colors = cm.rainbow(np.linspace(0, 1, len(ttbr_list)))
         for j,ttbr in enumerate(tqdm(ttbr_list)):
-            labels = generate_syn_phenotypes(ttbr=ttbr,root_path=DATA_DIR, n_info_snps=inform_snps, n_noise_snps=noise_snps)
+            labels = generate_syn_phenotypes(ttbr=ttbr, root_path=SYN_DATA_DIR, n_info_snps=inform_snps, n_noise_snps=noise_snps)
             
             pvalues_per_run_combi = Parallel(n_jobs=-1, require='sharedmem')(delayed(p_compute_pvalues)(h5py_data[str(i)][:], labels[str(i)]) for i in tqdm(range(rep)))
             pvalues_per_run_x2 = Parallel(n_jobs=-1, require='sharedmem')(delayed(chi_square)(h5py_data[str(i)][:], labels[str(i)]) for i in tqdm(range(rep)))
@@ -185,7 +185,7 @@ class TestCombi(object):
         true_pvalues = np.zeros((rep, n_total_snps), dtype=bool)
         true_pvalues[:,int(noise_snps/2):int(noise_snps/2)+inform_snps] = True
 
-        labels = generate_syn_phenotypes(ttbr=ttbr,root_path=DATA_DIR, n_info_snps=inform_snps, n_noise_snps=noise_snps)
+        labels = generate_syn_phenotypes(ttbr=ttbr, root_path=SYN_DATA_DIR, n_info_snps=inform_snps, n_noise_snps=noise_snps)
 
         
         # Try a couple of different ks 
@@ -262,7 +262,7 @@ class TestCombi(object):
         for ttbr in tqdm(ttbrs):
             
 
-            labels = generate_syn_phenotypes(ttbr=ttbr,root_path=DATA_DIR, n_info_snps=inform_snps, n_noise_snps=noise_snps)
+            labels = generate_syn_phenotypes(ttbr=ttbr, root_path=SYN_DATA_DIR, n_info_snps=inform_snps, n_noise_snps=noise_snps)
             
             pvalues_per_run = Parallel(n_jobs=-1, require='sharedmem')(delayed(f)(h5py_data[str(i)][:], labels[str(i)]) for i in range(rep))
             

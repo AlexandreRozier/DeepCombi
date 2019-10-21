@@ -180,6 +180,20 @@ fwer['41'] = np.load("/home/hx/Work/Masterarbeit/numpy_arrays_2/fwer-41-6.npy")
 fwer['rpvt'] = np.load("/home/hx/Work/Masterarbeit/numpy_arrays_2/rpvt-fwer-6.npy")
 fwer['combi'] = np.load("/home/hx/Work/Masterarbeit/numpy_arrays_2/combi-fwer-6.npy")
 
+# TPR/FWER
+fig, ax = plt.subplots(1,1)
+
+ax.plot( fwer['combi'],
+        tpr['combi'],'-',fwer['31'],tpr['31'],'-')
+ax.set_xlim(0, 0.1)
+ax.set_ylim(0, 0.55)
+
+plt.legend(loc='lower left', labels=['COMBI', 'RPVT'])
+plt.xlabel('Family-wise Error Rate')
+plt.ylabel('True Positive Rate')
+plt.tight_layout()
+
+ax.figure.savefig("img/toy-tpr-fwer.png")
 
 
 fig, ax = plt.subplots(1,1)
@@ -187,27 +201,13 @@ tpr['31'] = tpr['31'][tpr['31'] < 1]
 precision['31'] = precision['31'][:len(tpr['31'])]
 tpr['combi'] = tpr['combi'][tpr['combi'] < 1]
 precision['combi'] = precision['combi'][:len(tpr['combi'])]
-ax.plot(tpr['31'], precision['31'],'x-', tpr['rpvt'], precision['rpvt'],'x-', tpr['combi'],
-        precision['combi'],'x-')
+ax.plot( tpr['combi'],
+        precision['combi'],'-',tpr['rpvt'], precision['rpvt'],'-' )
 
-plt.legend(loc='lower left', labels=['DeepCOMBI', 'RPVT', 'COMBI'])
+plt.legend(loc='lower left', labels=['COMBI', 'RPVT'])
 plt.xlabel('True Positive Rate')
 plt.ylabel('Precision')
 plt.tight_layout()
 
-ax.figure.savefig("/home/hx/Work/Masterarbeit/report/report/lrp-combi-tpr-fwer.png")
+ax.figure.savefig("img/toy-precision-tpr.png")
 
-# TPR/FWER
-fig, ax = plt.subplots(1,1)
-
-ax.plot(fwer['31'], tpr['31'],'x-', fwer['rpvt'], tpr['rpvt'],'x-', fwer['combi'],
-        tpr['combi'],'x-')
-ax.set_xlim(0, 0.1)
-ax.set_ylim(0, 0.55)
-
-plt.legend(loc='lower left', labels=['DeepCOMBI', 'RPVT', 'COMBI'])
-plt.xlabel('Family-wise Error Rate')
-plt.ylabel('True Positive Rate')
-plt.tight_layout()
-
-ax.figure.savefig("/home/hx/Work/Masterarbeit/report/report/lrp-combi-precision-tpr.png")

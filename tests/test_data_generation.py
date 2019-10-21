@@ -5,7 +5,7 @@ import numpy as np
 from tqdm import tqdm
 from helpers import generate_syn_genotypes, generate_syn_phenotypes, h5py_to_featmat, check_genotype_unique_allels, char_matrix_to_featmat, chi_square
 from parameters_complete import (
-    DATA_DIR, noise_snps, inform_snps, n_total_snps, n_subjects, ttbr as ttbr, disease_IDs, real_pnorm_feature_scaling, FINAL_RESULTS_DIR) 
+    SYN_DATA_DIR, noise_snps, inform_snps, n_total_snps, n_subjects, ttbr as ttbr, disease_IDs, real_pnorm_feature_scaling, FINAL_RESULTS_DIR)
 
 
 class TestDataGeneration(object):
@@ -35,8 +35,8 @@ class TestDataGeneration(object):
 
     def test_synthetic_genotypes_generation(self, rep):
         
-        data_path = generate_syn_genotypes(root_path=DATA_DIR, n_subjects=n_subjects,
-                                           n_info_snps=inform_snps, n_noise_snps=noise_snps, 
+        data_path = generate_syn_genotypes(root_path=SYN_DATA_DIR, n_subjects=n_subjects,
+                                           n_info_snps=inform_snps, n_noise_snps=noise_snps,
                                            quantity=rep)
 
         with h5py.File(data_path, 'r') as file:
@@ -51,14 +51,14 @@ class TestDataGeneration(object):
     def test_synthetic_phenotypes_generation(self, rep):
        
         labels = generate_syn_phenotypes(ttbr=ttbr,
-            root_path=DATA_DIR, n_info_snps=inform_snps, n_noise_snps=noise_snps, quantity=rep)['0']
+                                         root_path=SYN_DATA_DIR, n_info_snps=inform_snps, n_noise_snps=noise_snps, quantity=rep)['0']
         assert(labels.shape[0] == n_subjects)
 
     
     def test_phenotype_invariance(self, rep):
-        labels = generate_syn_phenotypes(root_path=DATA_DIR,  quantity=rep)
+        labels = generate_syn_phenotypes(root_path=SYN_DATA_DIR, quantity=rep)
         
-        labels2 = generate_syn_phenotypes(root_path=DATA_DIR,  quantity=rep)
+        labels2 = generate_syn_phenotypes(root_path=SYN_DATA_DIR, quantity=rep)
         
     
         for i in range(rep):
@@ -67,12 +67,12 @@ class TestDataGeneration(object):
     def test_proportion_of_labels(self, rep):
         
         labels = generate_syn_phenotypes(ttbr=ttbr,
-            root_path=DATA_DIR, n_info_snps=inform_snps, n_noise_snps=noise_snps, quantity=rep)['0']
+                                         root_path=SYN_DATA_DIR, n_info_snps=inform_snps, n_noise_snps=noise_snps, quantity=rep)['0']
         print(sum(labels == 1))
         print(sum(labels == -1))
 
     def test_feature_map_generation(self):
-        with h5py.File(os.path.join(DATA_DIR, 'syn_data.h5py'), 'r') as d:
+        with h5py.File(os.path.join(SYN_DATA_DIR, 'syn_data.h5py'), 'r') as d:
             raw_data = d['0'][:]
             fm2 = h5py_to_featmat(
                 raw_data, embedding_type='2d', overwrite=True)
@@ -101,12 +101,12 @@ class TestDataGeneration(object):
 
         for disease in tqdm(disease_IDs):
             for i in tqdm(range(1, 23)):
-                with h5py.File(os.path.join(DATA_DIR, disease, 'chromo_{}.mat'.format(i)), 'r') as f:
+                with h5py.File(os.path.join(SYN_DATA_DIR, disease, 'chromo_{}.mat'.format(i)), 'r') as f:
                     chrom = np.array(f.get('X')).T
                     assert chrom.shape[1] > chrom.shape[0]
 
 
-                    scipy.io.savemat(os.path.join(DATA_DIR, disease, 'chromo_{}_processed.mat'.format(i)),
+                    scipy.io.savemat(os.path.join(SYN_DATA_DIR, disease, 'chromo_{}_processed.mat'.format(i)),
                                      {'X': chrom.reshape(chrom.shape[0], -1, 3)[:, :, :2]},
                                      do_compression=True,
                                      appendmat=False)

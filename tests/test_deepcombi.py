@@ -18,15 +18,15 @@ from keras.regularizers import l1_l2
 from keras.callbacks import EarlyStopping, TensorBoard, ReduceLROnPlateau
 from keras.optimizers import SGD
 from models import create_explanable_conv_model, create_explanable_conv_model, create_lenet_model, \
-    create_clairvoyante_model, create_montaez_dense_model, create_montaez_dense_model_2, create_convdense_model
-from models import ConvDenseRLRonP, best_params_montaez_2
+    create_clairvoyante_model, create_montaez_dense_model, create_montaez_dense_model, create_convdense_model
+from models import ConvDenseRLRonP, best_params_montaez
 from tqdm import tqdm
 from combi import combi_method
 from helpers import postprocess_weights, chi_square, compute_metrics, plot_pvalues, generate_name_from_params, \
     generate_syn_phenotypes
 
 from parameters_complete import random_state, nb_of_jobs, filter_window_size, p_svm, \
-    p_pnorm_filter, n_total_snps, top_k, ttbr, thresholds, IMG_DIR, DATA_DIR, NUMPY_ARRAYS, alpha_sig_toy
+    p_pnorm_filter, n_total_snps, top_k, ttbr, thresholds, IMG_DIR, SYN_DATA_DIR, NUMPY_ARRAYS, alpha_sig_toy
 from joblib import Parallel, delayed
 from combi import toy_classifier, permuted_deepcombi_method
 import innvestigate
@@ -53,15 +53,15 @@ class TestDeepCOMBI(object):
 
         def f(x, y, idx, key):
             with tensorflow.Session().as_default():
-                model = create_montaez_dense_model_2(best_params_montaez_2)
+                model = create_montaez_dense_model(best_params_montaez)
                 model.fit(x=x[idx.train],
                           y=y[idx.train],
                           validation_data=(x[idx.test], y[idx.test]),
-                          epochs=best_params_montaez_2['epochs'],
+                          epochs=best_params_montaez['epochs'],
                           callbacks=[
                               ReduceLROnPlateau(monitor='val_loss',
-                                                factor=best_params_montaez_2['factor'],
-                                                patience=best_params_montaez_2['patience'],
+                                                factor=best_params_montaez['factor'],
+                                                patience=best_params_montaez['patience'],
                                                 mode='min'),
                               TensorBoard(log_dir=os.path.join(output_path, 'tb', 'test' + key),
                                           histogram_freq=3,
@@ -86,16 +86,16 @@ class TestDeepCOMBI(object):
 
         def f(i, x_3d, x_2d, y, y_0b, idx):
             with tensorflow.Session().as_default():
-                model = create_montaez_dense_model_2(best_params_montaez_2)
+                model = create_montaez_dense_model(best_params_montaez)
                 model.fit(x=x_3d[idx.train],
                           y=y_0b[idx.train],
                           validation_data=(x_3d[idx.test], y_0b[idx.test]),
-                          epochs=best_params_montaez_2['epochs'],
+                          epochs=best_params_montaez['epochs'],
                           callbacks=[
 
                               ReduceLROnPlateau(monitor='val_loss',
-                                                factor=best_params_montaez_2['factor'],
-                                                patience=best_params_montaez_2['patience'],
+                                                factor=best_params_montaez['factor'],
+                                                patience=best_params_montaez['patience'],
                                                 mode='min'),
                           ],
                           verbose=1)
@@ -171,7 +171,7 @@ class TestDeepCOMBI(object):
         def f(g):
             name = generate_name_from_params(g)
             with tensorflow.Session().as_default():
-                model = create_montaez_dense_model_2(g)
+                model = create_montaez_dense_model(g)
 
                 histories = [model.fit(x=fm[indices[str(i)].train],
                                        y=labels_cat[str(i)][indices[str(i)].train],
@@ -212,16 +212,16 @@ class TestDeepCOMBI(object):
         fm_2d = fm("2d")
 
         def fit_cnn(x, y, idx):
-            model = create_montaez_dense_model_2(best_params_montaez_2)
+            model = create_montaez_dense_model(best_params_montaez)
             return model.fit(x=x[idx.train],
                              y=y[idx.train],
                              validation_data=(
                                  x[idx.test], y[idx.test]),
-                             epochs=best_params_montaez_2['epochs'],
+                             epochs=best_params_montaez['epochs'],
                              callbacks=[
                                  ReduceLROnPlateau(monitor='val_loss',
-                                                   factor=best_params_montaez_2['factor'],
-                                                   patience=best_params_montaez_2['patience'],
+                                                   factor=best_params_montaez['factor'],
+                                                   patience=best_params_montaez['patience'],
                                                    mode='min'),
                              ]).history['val_acc'][-1]
 
@@ -250,7 +250,7 @@ class TestDeepCOMBI(object):
         window_lengths = [31, 35, 41]
 
 
-        best_params_montaez_2['n_snps'] = n_total_snps
+        best_params_montaez['n_snps'] = n_total_snps
         n_permutations = 2
 
         def combi_compute_pvalues(d, x, l):
@@ -266,15 +266,15 @@ class TestDeepCOMBI(object):
             is_only_zeros = False
             with tensorflow.Session().as_default():
 
-                model = create_montaez_dense_model_2(best_params_montaez_2)
+                model = create_montaez_dense_model(best_params_montaez)
 
                 model.fit(x=x[idx.train], y=l_0b[idx.train],
                           validation_data=(x[idx.test], l_0b[idx.test]),
-                          epochs=best_params_montaez_2['epochs'],
+                          epochs=best_params_montaez['epochs'],
                           callbacks=[
                               ReduceLROnPlateau(monitor='val_loss',
-                                                factor=best_params_montaez_2['factor'],
-                                                patience=best_params_montaez_2['patience'],
+                                                factor=best_params_montaez['factor'],
+                                                patience=best_params_montaez['patience'],
                                                 mode='min'),
                           ])
 
@@ -435,15 +435,15 @@ class TestDeepCOMBI(object):
             labels = generate_syn_phenotypes(ttbr=ttbr, quantity=rep)['4']
             l_0b = (labels + 1) / 2
 
-            model = create_montaez_dense_model_2(best_params_montaez_2)
+            model = create_montaez_dense_model(best_params_montaez)
             model.fit(x=x_3d[idx.train],
                       y=l_0b[idx.train],
                       validation_data=(x_3d[idx.test], l_0b[idx.test]),
-                      epochs=best_params_montaez_2['epochs'],
+                      epochs=best_params_montaez['epochs'],
                       callbacks=[
                           ReduceLROnPlateau(monitor='val_loss',
-                                            factor=best_params_montaez_2['factor'],
-                                            patience=best_params_montaez_2['patience'],
+                                            factor=best_params_montaez['factor'],
+                                            patience=best_params_montaez['patience'],
                                             mode='min'),
                       ],
                       )

@@ -1,26 +1,23 @@
-import tensorflow as tf
-from parameters_complete import DATA_DIR, ttbr as default_ttbr, seed, random_state ,n_subjects, n_total_snps, noise_snps, inform_snps      , random_state, FINAL_RESULTS_DIR
-from helpers import h5py_to_featmat, generate_syn_phenotypes
-from sklearn.model_selection import train_test_split, StratifiedShuffleSplit
-import numpy as np
 import os
-import math
-from time import time
+
 import h5py
-from tqdm import tqdm
+import numpy as np
 import pytest
 import scipy
-
+import tensorflow as tf
+from sklearn.model_selection import StratifiedShuffleSplit
 
 from Indices import Indices
-
+from helpers import h5py_to_featmat, generate_syn_phenotypes
+from parameters_complete import SYN_DATA_DIR, ttbr as default_ttbr, n_subjects, n_total_snps, noise_snps, inform_snps, \
+    random_state, FINAL_RESULTS_DIR, REAL_DATA_DIR
 
 TRAIN_PERCENTAGE = 0.80
 TEST_PERCENTAGE = 0.20
 VAL_PERCENTAGE = 1 - TRAIN_PERCENTAGE - TEST_PERCENTAGE
 
 
-features_path = os.path.join(DATA_DIR, 'syn_data.h5py')
+features_path = os.path.join(SYN_DATA_DIR, 'syn_data.h5py')
 
 # Fancy command-line options
 def pytest_addoption(parser):
@@ -68,7 +65,7 @@ def real_pvalues():
 @pytest.fixture(scope="module")
 def real_h5py_data():
     def real_data_(disease, chrom):
-        return scipy.io.loadmat(os.path.join(DATA_DIR,disease,'chromo_{}_processed.mat'.format(chrom)))['X']
+        return scipy.io.loadmat(os.path.join(REAL_DATA_DIR, disease, 'chromo_{}_processed.mat'.format(chrom)))['X']
         
     return real_data_
 
@@ -76,26 +73,25 @@ def real_h5py_data():
 def chrom_length():
     def chrom_length_(disease, chrom):
         try:
-            _, shape, _ =  scipy.io.whosmat(os.path.join(DATA_DIR, disease, 'chromo_{}.mat'.format(chrom)))[0][1]/3.0
+            _, shape, _ = scipy.io.whosmat(os.path.join(REAL_DATA_DIR, disease, 'chromo_{}.mat'.format(chrom)))[0][1] / 3.0
 
         except NotImplementedError:
-            shape = h5py.File(os.path.join(DATA_DIR, disease, 'chromo_{}.mat'.format(chrom))).get('X').shape[0]/3.0
+            shape = h5py.File(os.path.join(REAL_DATA_DIR, disease, 'chromo_{}.mat'.format(chrom))).get('X').shape[0] / 3.0
         return int(shape)
 
     return chrom_length_
 
 
-    return real_data_
 
 
 @pytest.fixture(scope='module')
 def real_labels():
     def real_labels_(disease):
         try:
-            return scipy.io.loadmat(os.path.join(DATA_DIR, disease,'labels.mat'))['y'][0]
+            return scipy.io.loadmat(os.path.join(REAL_DATA_DIR, disease, 'labels.mat'))['y'][0]
 
         except Exception as identifier:
-            return h5py.File(os.path.join(DATA_DIR, disease,'labels.mat'),'r').get('y')[:].T[0]
+            return h5py.File(os.path.join(REAL_DATA_DIR, disease, 'labels.mat'), 'r').get('y')[:].T[0]
     return real_labels_
 
 @pytest.fixture(scope='module')
@@ -123,7 +119,7 @@ def real_idx(real_h5py_data, real_labels_0based):
 def alphas():
     def alphas_(disease):
 
-        with h5py.File(os.path.join(DATA_DIR,disease,'alpha_j.mat', 'r')) as f:
+        with h5py.File(os.path.join(REAL_DATA_DIR, disease, 'alpha_j.mat', 'r')) as f:
             return f['alpha_j'].T[0]    
     return alphas_
 
@@ -131,14 +127,14 @@ def alphas():
 def alphas_EV():
     def alphas_EV_(disease):
 
-        with h5py.File(os.path.join(DATA_DIR,disease,'alpha_j_EV.mat', 'r')) as f:
+        with h5py.File(os.path.join(REAL_DATA_DIR, disease, 'alpha_j_EV.mat', 'r')) as f:
             return f['alpha_j_EV'].T[0]   
     return alphas_EV_
 
 @pytest.fixture(scope='function')
 def labels(rep, ttbr):
     return generate_syn_phenotypes(ttbr=ttbr,
-            root_path=DATA_DIR, n_info_snps=inform_snps, n_noise_snps=noise_snps,quantity=rep)
+                                   root_path=SYN_DATA_DIR, n_info_snps=inform_snps, n_noise_snps=noise_snps, quantity=rep)
      
 @pytest.fixture(scope='function')
 def labels_cat(labels):

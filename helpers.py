@@ -12,7 +12,7 @@ from tensorflow.python.client import device_lib
 from torch.utils.data.sampler import SubsetRandomSampler
 from tqdm import tqdm
 
-from parameters_complete import DATA_DIR, ttbr as ttbr, n_subjects, pnorm_feature_scaling, inform_snps, seed
+from parameters_complete import SYN_DATA_DIR, ttbr as ttbr, n_subjects, pnorm_feature_scaling, inform_snps, seed
 
 
 def get_available_gpus():
@@ -59,7 +59,7 @@ def check_genotype_unique_allels(genotype):
                 for i in range(genotype.shape[1])]) <= 3)
 
 
-def generate_syn_genotypes(root_path=DATA_DIR, prefix="syn", n_subjects=n_subjects, n_info_snps=20, n_noise_snps=10000, quantity=1):
+def generate_syn_genotypes(root_path=SYN_DATA_DIR, prefix="syn", n_subjects=n_subjects, n_info_snps=20, n_noise_snps=10000, quantity=1):
     """ Generate synthetic genotypes and labels by removing all minor allels with low frequency, and missing SNPs.
         First step of data preprocessing, has to be followed by string_to_featmat()
         > Checks that that each SNP in each chromosome has at most 2 unique values in the whole dataset.
@@ -72,7 +72,7 @@ def generate_syn_genotypes(root_path=DATA_DIR, prefix="syn", n_subjects=n_subjec
         pass
 
 
-    with h5py.File(os.path.join(DATA_DIR, 'chromo_2.mat'), 'r') as f2:
+    with h5py.File(os.path.join(SYN_DATA_DIR, 'chromo_2.mat'), 'r') as f2:
         chrom2_full = np.array(f2.get('X')).T
 
     chrom2_full = chrom2_full.reshape(chrom2_full.shape[0], -1, 3)[:, :, :2]
@@ -81,7 +81,7 @@ def generate_syn_genotypes(root_path=DATA_DIR, prefix="syn", n_subjects=n_subjec
     assert chrom2_full.shape[0] > n_subjects
     chrom2 = chrom2_full[:n_subjects]
 
-    with h5py.File(os.path.join(DATA_DIR, 'chromo_1.mat'), 'r') as f:
+    with h5py.File(os.path.join(SYN_DATA_DIR, 'chromo_1.mat'), 'r') as f:
         chrom1_full = np.array(f.get('X')).T
 
 
@@ -110,7 +110,7 @@ def generate_syn_genotypes(root_path=DATA_DIR, prefix="syn", n_subjects=n_subjec
     return os.path.join(root_path, prefix+'_data.h5py')
 
 
-def generate_syn_phenotypes(root_path=DATA_DIR, ttbr=ttbr, prefix="syn", n_info_snps=20, n_noise_snps=10000, quantity=1):
+def generate_syn_phenotypes(root_path=SYN_DATA_DIR, ttbr=ttbr, prefix="syn", n_info_snps=20, n_noise_snps=10000, quantity=1):
     """
     > Assumes that each SNP has at most 3 unique values in the whole dataset (Two allels and possibly unmapped values)
     IMPORTANT: DOES NOT LOAD FROM FILE
@@ -221,8 +221,8 @@ def h5py_to_featmat(h5py_data, embedding_type='2d', overwrite=False):
         Second and final step of data preprocessing.
     """
     
-    fm_path = os.path.join(DATA_DIR, embedding_type+'_syn_fm.h5py')
-    data_path = os.path.join(DATA_DIR,'syn_data.h5py')
+    fm_path = os.path.join(SYN_DATA_DIR, embedding_type + '_syn_fm.h5py')
+    data_path = os.path.join(SYN_DATA_DIR, 'syn_data.h5py')
 
     if overwrite:
         try:
