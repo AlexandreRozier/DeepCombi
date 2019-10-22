@@ -24,7 +24,7 @@ PARAMETERS_DIR = os.path.join(TEST_DIR,'parameters')
 SAVED_MODELS_DIR = os.path.join(TEST_DIR,'exported_models')
 TB_DIR = os.path.join(TEST_DIR,'exported_models')
 NUMPY_ARRAYS = os.path.join(ROOT_DIR,'numpy_arrays')
-FINAL_RESULTS_DIR = os.path.join(ROOT_DIR,'MULTIPLE_TOWERS')
+FINAL_RESULTS_DIR = os.path.join(ROOT_DIR,'experiments','MONTAEZ_CD_C3_HP')
 
 ########
 ttbr = 6

@@ -8,7 +8,7 @@ import pickle
 import numpy as np
 import tensorflow
 from models import create_montaez_dense_model, best_params_montaez
-from keras.callbacks import TensorBoard, ReduceLROnPlateau, CSVLogger
+from keras.callbacks import ReduceLROnPlateau, CSVLogger
 from helpers import char_matrix_to_featmat, get_available_gpus
 from parameters_complete import FINAL_RESULTS_DIR, real_pnorm_feature_scaling, filter_window_size, real_top_k
 from parameters_complete import disease_IDs
@@ -133,29 +133,6 @@ class TestLOTR(object):
         pickle.dump(t_star_EV, open(os.path.join(FINAL_RESULTS_DIR, 'chrom{}-t_star_EV.p'.format(chrom)), 'wb'))
 
 
-    def test_parameters(self, real_h5py_data, real_labels_cat, real_idx):
-
-        data = real_h5py_data(3)
-        fm = char_matrix_to_featmat(data, '3d', real_pnorm_feature_scaling)
-
-        hp = pickle.load(open(os.path.join(FINAL_RESULTS_DIR, 'hyperparams', 'CD', 'chrom3.p'), 'rb'))
-        hp['epochs'] = int(hp['epochs'])
-
-        model = create_montaez_dense_model(hp)
-
-        model.fit(x=fm[real_idx.train],
-                  y=real_labels_cat[real_idx.train],
-                  validation_data=(fm[real_idx.test], real_labels_cat[real_idx.test]),
-
-                  epochs=hp['epochs'],
-                  callbacks=[
-                      TensorBoard(log_dir=os.path.join(FINAL_RESULTS_DIR, 'tb', 'tests'),
-                                  histogram_freq=3,
-                                  write_graph=False,
-                                  write_grads=True,
-                                  write_images=False)
-                  ],
-                  verbose=1)
 
     def test_extract_best_hps(self):
 
@@ -276,3 +253,23 @@ class TestLOTR(object):
                        params=params_space,
                        model=talos_wrapper,
                        experiment_name=os.path.join(FINAL_RESULTS_DIR,'talos',disease, str(chrom)))
+
+
+    def test_crohn_c3_parameters(self, real_h5py_data, real_labels_cat, real_idx):
+
+        data = real_h5py_data('CD', 3)
+        fm = char_matrix_to_featmat(data, '3d', real_pnorm_feature_scaling)
+
+        hp = dict(epochs=600,dropout_rate=0.3,hidden_neurons=10,l1_reg=0.0001,l2_reg=0,lr=0.01,n_snps=fm.shape[1])
+
+        model = create_montaez_dense_model(hp)
+
+        model.fit(x=fm[real_idx.train],
+                  y=real_labels_cat[real_idx.train],
+                  validation_data=(fm[real_idx.test], real_labels_cat[real_idx.test]),
+
+                  epochs=hp['epochs'],
+                  callbacks=[
+                      CSVLogger(os.path.join(FINAL_RESULTS_DIR, 'csv_logs', 'CD', '3'))
+                  ],
+                  verbose=1)

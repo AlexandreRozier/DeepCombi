@@ -183,12 +183,12 @@ fwer['combi'] = np.load("/home/hx/Work/Masterarbeit/numpy_arrays_2/combi-fwer-6.
 # TPR/FWER
 fig, ax = plt.subplots(1,1)
 
-ax.plot( fwer['combi'],
-        tpr['combi'],'-',fwer['31'],tpr['31'],'-')
+ax.plot( fwer['rpvt'],tpr['rpvt'],'-',fwer['combi'],
+        tpr['combi'])
 ax.set_xlim(0, 0.1)
 ax.set_ylim(0, 0.55)
 
-plt.legend(loc='lower left', labels=['COMBI', 'RPVT'])
+plt.legend(loc='lower left', labels=['RPVT','COMBI'])
 plt.xlabel('Family-wise Error Rate')
 plt.ylabel('True Positive Rate')
 plt.tight_layout()
@@ -201,10 +201,10 @@ tpr['31'] = tpr['31'][tpr['31'] < 1]
 precision['31'] = precision['31'][:len(tpr['31'])]
 tpr['combi'] = tpr['combi'][tpr['combi'] < 1]
 precision['combi'] = precision['combi'][:len(tpr['combi'])]
-ax.plot( tpr['combi'],
-        precision['combi'],'-',tpr['rpvt'], precision['rpvt'],'-' )
+ax.plot( tpr['rpvt'],precision['rpvt'],'-',tpr['combi'],
+        precision['combi'],'-' )
 
-plt.legend(loc='lower left', labels=['COMBI', 'RPVT'])
+plt.legend(loc='lower left', labels=['RPVT','COMBI'])
 plt.xlabel('True Positive Rate')
 plt.ylabel('Precision')
 plt.tight_layout()
