@@ -223,11 +223,7 @@ def h5py_to_featmat(embedding_type='2d', overwrite=False):
     :param overwrite:
     :return:
     """
-    """ - Transforms raw genomic matrix of chars to a tensor of features.
-        - Encode SNPs with error to [0,0,0] 
-        - Does NOT change shape or perform modifications
-        Second and final step of data preprocessing.
-    """
+
     data_path = os.path.join(SYN_DATA_DIR, 'syn_data.h5py')
 
     fm_path = os.path.join(SYN_DATA_DIR, embedding_type + '_syn_fm.h5py')
