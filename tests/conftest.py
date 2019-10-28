@@ -9,7 +9,7 @@ from sklearn.model_selection import StratifiedShuffleSplit
 
 from Indices import Indices
 from helpers import h5py_to_featmat, generate_syn_phenotypes
-from parameters_complete import SYN_DATA_DIR, ttbr as default_ttbr, n_subjects, n_total_snps, noise_snps, inform_snps, \
+from parameters_complete import SYN_DATA_DIR, ttbr as default_ttbr, syn_n_subjects, n_total_snps, noise_snps, inform_snps, \
     random_state, FINAL_RESULTS_DIR, REAL_DATA_DIR
 
 TRAIN_PERCENTAGE = 0.80
@@ -45,29 +45,6 @@ def true_pvalues(rep):
     return pvalues
 
 
-@pytest.fixture(scope="module")
-def h5py_data():
-    return h5py.File(features_path,'r')
-
-@pytest.fixture(scope="module")
-def fm(h5py_data):
-    def fm_(dimension):
-        return h5py_to_featmat(h5py_data, embedding_type=dimension)
-    return fm_
-
-@pytest.fixture(scope="module")
-def real_pvalues():
-    def real_pvalues_(disease, chromo):
-        return np.load(os.path.join(FINAL_RESULTS_DIR, 'pvalues', disease, '{}.npy'.format(chromo)))
-    return real_pvalues_
-
-
-@pytest.fixture(scope="module")
-def real_h5py_data():
-    def real_data_(disease, chrom):
-        return scipy.io.loadmat(os.path.join(REAL_DATA_DIR, disease, 'chromo_{}_processed.mat'.format(chrom)))['X']
-        
-    return real_data_
 
 @pytest.fixture(scope="module")
 def chrom_length():
@@ -83,6 +60,75 @@ def chrom_length():
 
 
 
+
+@pytest.fixture(scope='module')
+def alphas():
+    def alphas_(disease):
+
+        with h5py.File(os.path.join(REAL_DATA_DIR, disease, 'alpha_j.mat', 'r')) as f:
+            return f['alpha_j'].T[0]    
+    return alphas_
+
+@pytest.fixture(scope='module')
+def alphas_ev():
+    def alphas_EV_(disease):
+
+        with h5py.File(os.path.join(REAL_DATA_DIR, disease, 'alpha_j_EV.mat', 'r')) as f:
+            return f['alpha_j_EV'].T[0]   
+    return alphas_EV_
+
+"""
+++++++++++++ TOY/SYNTHETIC DATA PROVIDERS +++++++++++=
+"""
+@pytest.fixture(scope="module")
+def h5py_data():
+    return h5py.File(features_path,'r')
+
+@pytest.fixture(scope="module")
+def syn_fm(h5py_data):
+    def fm_(dimension):
+        return h5py_to_featmat(embedding_type=dimension)
+    return fm_
+
+
+@pytest.fixture(scope='function')
+def syn_labels(rep, ttbr):
+    return generate_syn_phenotypes(ttbr=ttbr,
+                                   root_path=SYN_DATA_DIR, n_info_snps=inform_snps, n_noise_snps=noise_snps, quantity=rep)
+     
+@pytest.fixture(scope='function')
+def syn_labels_cat(syn_labels):
+    labels_cat = {}
+    for key, l in syn_labels.items():
+        labels_cat[key] = tf.keras.utils.to_categorical((l+1)/2)
+    return labels_cat
+
+@pytest.fixture(scope='function')
+def syn_labels_0based(syn_labels):
+    labels_0based = {}
+    for key, l in syn_labels.items():
+        labels_0based[key] = ((l+1)/2).astype(int)
+    return labels_0based
+
+
+@pytest.fixture(scope="function")
+def syn_idx(syn_labels_0based):
+    """ Gets stratified indices. WARNING not usable with a val set
+    """
+    assert VAL_PERCENTAGE <=0.00001
+    indices_ = {}
+    splitter =  StratifiedShuffleSplit(n_splits=1, test_size = TEST_PERCENTAGE, random_state=random_state)
+    for key, labels in syn_labels_0based.items():
+
+        train_indices, test_indices = next(splitter.split(np.zeros(syn_n_subjects), labels))
+        indices_[key] = Indices(train_indices, test_indices, None)
+    
+    print('Dataset sizes: Train: {}; Test: {}; Validation: ERROR'.format(len(train_indices),len(test_indices)))
+    return indices_
+
+"""
+++++++++++++ WTCCC DATA PROVIDERS +++++++++++=
+"""
 
 @pytest.fixture(scope='module')
 def real_labels():
@@ -107,64 +153,31 @@ def real_labels_cat(real_labels_0based):
     return real_labels_cat_
 
 @pytest.fixture(scope='module')
-def real_idx(real_h5py_data, real_labels_0based):
+def real_idx(real_genomic_data, real_labels_0based):
     def real_idx_(disease):
         n_subjects = len(real_labels_0based(disease))
         splitter =  StratifiedShuffleSplit(n_splits=1, test_size = TEST_PERCENTAGE, random_state=random_state)
         train_indices, test_indices = next(splitter.split(np.zeros(n_subjects), real_labels_0based(disease)))
-        return Indices(train_indices, test_indices, None)   
-    return real_idx_  
-
-@pytest.fixture(scope='module')
-def alphas():
-    def alphas_(disease):
-
-        with h5py.File(os.path.join(REAL_DATA_DIR, disease, 'alpha_j.mat', 'r')) as f:
-            return f['alpha_j'].T[0]    
-    return alphas_
-
-@pytest.fixture(scope='module')
-def alphas_EV():
-    def alphas_EV_(disease):
-
-        with h5py.File(os.path.join(REAL_DATA_DIR, disease, 'alpha_j_EV.mat', 'r')) as f:
-            return f['alpha_j_EV'].T[0]   
-    return alphas_EV_
-
-@pytest.fixture(scope='function')
-def labels(rep, ttbr):
-    return generate_syn_phenotypes(ttbr=ttbr,
-                                   root_path=SYN_DATA_DIR, n_info_snps=inform_snps, n_noise_snps=noise_snps, quantity=rep)
-     
-@pytest.fixture(scope='function')
-def labels_cat(labels):
-    labels_cat = {}
-    for key, l in labels.items():
-        labels_cat[key] = tf.keras.utils.to_categorical((l+1)/2)
-    return labels_cat
-
-@pytest.fixture(scope='function')
-def labels_0based(labels):
-    labels_0based = {}
-    for key, l in labels.items():
-        labels_0based[key] = ((l+1)/2).astype(int)
-    return labels_0based
+        return Indices(train_indices, test_indices, None)
+    return real_idx_
 
 
-@pytest.fixture(scope="function")
-def indices(labels_0based):
-    """ Gets stratified indices. WARNING not usable with a val set
+@pytest.fixture(scope="module")
+def real_pvalues():
+    def real_pvalues_(disease, chromo):
+        return np.load(os.path.join(FINAL_RESULTS_DIR, 'pvalues', disease, '{}.npy'.format(chromo)))
+
+    return real_pvalues_
+
+
+@pytest.fixture(scope="module")
+def real_genomic_data():
     """
-    assert VAL_PERCENTAGE <=0.00001
-    indices_ = {}
-    splitter =  StratifiedShuffleSplit(n_splits=1, test_size = TEST_PERCENTAGE, random_state=random_state)
-    for key, labels in labels_0based.items():
+    Provides the 3D genomic data corresponding to disease, chromosome
+    Shape: (N, n_snps, 2) -> 2 corresponds to the number of allels.
+    :return:
+    """
+    def real_data_(disease, chrom):
+        return scipy.io.loadmat(os.path.join(REAL_DATA_DIR, disease, 'chromo_{}_processed.mat'.format(chrom)))['X']
 
-        train_indices, test_indices = next(splitter.split(np.zeros(n_subjects), labels))
-        indices_[key] = Indices(train_indices, test_indices, None)
-    
-    print('Dataset sizes: Train: {}; Test: {}; Validation: ERROR'.format(len(train_indices),len(test_indices)))
-    return indices_
-
-
-
+    return real_data_

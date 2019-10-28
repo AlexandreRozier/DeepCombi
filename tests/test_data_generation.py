@@ -1,21 +1,26 @@
-import h5py
-import scipy
 import os
+
+import h5py
 import numpy as np
+import scipy
 from tqdm import tqdm
-from helpers import generate_syn_genotypes, generate_syn_phenotypes, h5py_to_featmat, check_genotype_unique_allels, char_matrix_to_featmat, chi_square
+
+from helpers import generate_syn_genotypes, generate_syn_phenotypes, h5py_to_featmat, check_genotype_unique_allels, \
+    chi_square
 from parameters_complete import (
-    SYN_DATA_DIR, noise_snps, inform_snps, n_total_snps, n_subjects, ttbr as ttbr, disease_IDs, real_pnorm_feature_scaling, FINAL_RESULTS_DIR)
+    SYN_DATA_DIR, noise_snps, inform_snps, n_total_snps, syn_n_subjects, ttbr as ttbr, disease_IDs, FINAL_RESULTS_DIR)
 
 
 class TestDataGeneration(object):
-    pass
+    """
+    This class takes care of generating all synthetic and real data & labels
+    """
     
         
     def test_syntest_text_to_hdf5(self):
 
         filename = 'data/bett_data.txt'
-        lines_nb = sum(1 for line in open(filename))
+        lines_nb = sum(1 for _ in open(filename))
         data = np.zeros((lines_nb, 10020, 2))
         with open(filename,'rb') as f:
             for i, line in enumerate(f):
@@ -24,18 +29,16 @@ class TestDataGeneration(object):
                 data[i] = line
             assert i == lines_nb - 1
         
-        labels = np.loadtxt('data/bett_labels.txt')
 
         with h5py.File('data/bett_data.h5py', 'w') as file:
             file.create_dataset("X", data=data)
             
-        with h5py.File('data/bett_labels.h5py', 'w') as file:
-            file.create_dataset("X", data=labels)
+
     
 
     def test_synthetic_genotypes_generation(self, rep):
         
-        data_path = generate_syn_genotypes(root_path=SYN_DATA_DIR, n_subjects=n_subjects,
+        data_path = generate_syn_genotypes(root_path=SYN_DATA_DIR, n_subjects=syn_n_subjects,
                                            n_info_snps=inform_snps, n_noise_snps=noise_snps,
                                            quantity=rep)
 
@@ -43,7 +46,7 @@ class TestDataGeneration(object):
             print("Veryifying the generated phenotypes...")
             genotype = file['0'][:]
             n_indiv, n_snps, _ = genotype.shape
-            assert n_indiv == n_subjects
+            assert n_indiv == syn_n_subjects
             assert n_snps == inform_snps + noise_snps
             # Checks that at most 3 unique allels exist
             check_genotype_unique_allels(genotype)
@@ -52,7 +55,7 @@ class TestDataGeneration(object):
        
         labels = generate_syn_phenotypes(ttbr=ttbr,
                                          root_path=SYN_DATA_DIR, n_info_snps=inform_snps, n_noise_snps=noise_snps, quantity=rep)['0']
-        assert(labels.shape[0] == n_subjects)
+        assert(labels.shape[0] == syn_n_subjects)
 
     
     def test_phenotype_invariance(self, rep):
@@ -72,22 +75,27 @@ class TestDataGeneration(object):
         print(sum(labels == -1))
 
     def test_feature_map_generation(self):
-        with h5py.File(os.path.join(SYN_DATA_DIR, 'syn_data.h5py'), 'r') as d:
-            raw_data = d['0'][:]
-            fm2 = h5py_to_featmat(
-                raw_data, embedding_type='2d', overwrite=True)
-            fm3 = h5py_to_featmat(
-                raw_data, embedding_type='3d', overwrite=True)
-            assert fm2['0'].shape[0] == n_subjects
-            assert fm3['0'].shape[0] == n_subjects
-            assert fm2['0'].shape[1] == n_total_snps * 3
-            assert fm3['0'].shape[1] == n_total_snps
+        """
+        From synthetic data in h5py format generate a corresponding feature matrix
+        :return: a written featmat at data/synthetic/2d_syn_fm.h5py
+        and a written featmat at data/synthetic/3d_syn_fm.h5py
+        """
+        fm2 = h5py_to_featmat(embedding_type='2d', overwrite=True)
+        fm3 = h5py_to_featmat(embedding_type='3d', overwrite=True)
+        assert fm2['0'].shape[0] == syn_n_subjects
+        assert fm3['0'].shape[0] == syn_n_subjects
+        assert fm2['0'].shape[1] == n_total_snps * 3
+        assert fm3['0'].shape[1] == n_total_snps
 
 
-    def test_real_pvalues_generation(self, real_h5py_data, real_labels):
-        for disease_id in tqdm(['T1D', 'T2D']):
+    def test_real_pvalues_generation(self, real_genomic_data, real_labels):
+        """
+        Computes and save in a .mat file raw P-Values for each disease, chromosome
+        :return:
+        """
+        for disease_id in tqdm(disease_IDs):
             for chrom in tqdm(range(1,23)):
-                data = real_h5py_data(disease_id, chrom)
+                data = real_genomic_data(disease_id, chrom)
                 labels = real_labels(disease_id)
 
                 pvalues = chi_square(data, labels)
@@ -98,6 +106,11 @@ class TestDataGeneration(object):
                 del data, pvalues
 
     def test_mat_preprocessing(self):
+        """
+        Preprocesses the raw genomic .mat files to remove their trailing 0s
+        reshapes from (n_subjects, 3 * n_snps) to (n_subjects, n_snps, 2)
+        :return:
+        """
 
         for disease in tqdm(disease_IDs):
             for i in tqdm(range(1, 23)):
@@ -113,8 +126,4 @@ class TestDataGeneration(object):
                     del chrom
 
 
-    def test_real_labels(self, real_labels):
-        for disease_id in tqdm(disease_IDs):
-            labels = real_labels(disease_id)
-            print(labels)
 

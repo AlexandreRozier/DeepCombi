@@ -25,7 +25,7 @@ class TestPipeline(object):
                 scores += data.tail(1)['val_acc'].values.tolist()
             np.save(os.path.join(FINAL_RESULTS_DIR, 'accuracies', disease, 'deepcombi'), scores)
 
-    def test_save_combi_rm(self, real_h5py_data, real_labels, chrom_length):
+    def test_save_combi_rm(self, real_genomic_data, real_labels, chrom_length):
 
         """ Extract indices gotten from combi
         """
@@ -35,7 +35,7 @@ class TestPipeline(object):
         labels = real_labels(disease)
 
         for chromo in tqdm(range(1, 23)):
-            data = real_h5py_data(disease, chromo)
+            data = real_genomic_data(disease, chromo)
             fm_2D = char_matrix_to_featmat(data, '2d', real_pnorm_feature_scaling)
             # Save weights + indices
             _, _, raw_rm = combi_method(real_classifier, data, fm_2D,
@@ -51,7 +51,7 @@ class TestPipeline(object):
         os.makedirs(os.path.join(FINAL_RESULTS_DIR, 'combi_raw_rm'), exist_ok=True)
         np.save(os.path.join(FINAL_RESULTS_DIR, 'combi_raw_rm', disease), total_raw_rm)
 
-    def test_save_deepcombi_rm(self, real_h5py_data, real_labels):
+    def test_save_deepcombi_rm(self, real_genomic_data, real_labels):
         """ Extract rm and selected indices obtained through deepcombi
         """
         disease = disease_IDs[int(os.environ['SGE_TASK_ID']) - 1]
@@ -61,7 +61,7 @@ class TestPipeline(object):
         for chromo in tqdm(range(1, 23)):
             model = load_model(os.path.join(FINAL_RESULTS_DIR, 'trained_models', disease, 'model{}.h5'.format(chromo)))
 
-            data = real_h5py_data(disease, chromo)
+            data = real_genomic_data(disease, chromo)
             fm = char_matrix_to_featmat(data, '3d', real_pnorm_feature_scaling)
             labels = real_labels(disease)
             _, _, raw_rm = deepcombi_method(model, data, fm, labels, filter_window_size, real_p_pnorm_filter,

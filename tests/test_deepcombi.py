@@ -1,34 +1,27 @@
-import numpy as np
-import pandas as pd
 import os
-import time
 
 import matplotlib
+import numpy as np
+import pandas as pd
 
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-import matplotlib.cm as cm
 
 import tensorflow
 from sklearn.model_selection import ParameterGrid
 
-from keras import Sequential
-from keras.layers import Dense, Dropout, Flatten, Conv1D
-from keras.regularizers import l1_l2
-from keras.callbacks import EarlyStopping, TensorBoard, ReduceLROnPlateau
-from keras.optimizers import SGD
-from models import create_explanable_conv_model, create_explanable_conv_model, create_lenet_model, \
-    create_clairvoyante_model, create_montaez_dense_model, create_montaez_dense_model, create_convdense_model
-from models import ConvDenseRLRonP, best_params_montaez
+from keras.callbacks import TensorBoard, ReduceLROnPlateau
+from models import create_montaez_dense_model
+from models import best_params_montaez
 from tqdm import tqdm
 from combi import combi_method
 from helpers import postprocess_weights, chi_square, compute_metrics, plot_pvalues, generate_name_from_params, \
     generate_syn_phenotypes
 
 from parameters_complete import random_state, nb_of_jobs, filter_window_size, p_svm, \
-    p_pnorm_filter, n_total_snps, top_k, ttbr, thresholds, IMG_DIR, SYN_DATA_DIR, NUMPY_ARRAYS, alpha_sig_toy
+    p_pnorm_filter, n_total_snps, top_k, ttbr, thresholds, IMG_DIR, NUMPY_ARRAYS
 from joblib import Parallel, delayed
-from combi import toy_classifier, permuted_deepcombi_method
+from combi import toy_classifier
 import innvestigate
 import innvestigate.utils as iutils
 
@@ -36,10 +29,10 @@ import innvestigate.utils as iutils
 
 class TestDeepCOMBI(object):
 
-    def test_indices(self, labels_0based, indices):
+    def test_indices(self, syn_labels_0based, indices):
         idx = indices['0']
-        test_labels = labels_0based['0'][idx.test]
-        train_labels = labels_0based['0'][idx.train]
+        test_labels = syn_labels_0based['0'][idx.test]
+        train_labels = syn_labels_0based['0'][idx.train]
         print(test_labels)
         print(train_labels)
         print(len(test_labels[test_labels == 1]))
@@ -47,9 +40,9 @@ class TestDeepCOMBI(object):
         print(len(train_labels[train_labels == 1]))
         print(len(train_labels[train_labels == 0]))
 
-    def test_train(self, fm, labels_0based, indices, rep, output_path):
+    def test_train(self, syn_fm, syn_labels_0based, indices, rep, output_path):
 
-        fm_ = fm('3d')
+        fm_ = syn_fm('3d')
 
         def f(x, y, idx, key):
             with tensorflow.Session().as_default():
@@ -74,12 +67,12 @@ class TestDeepCOMBI(object):
 
         Parallel(n_jobs=-1, prefer="threads")(delayed(f)(
             fm_[str(i)][:],
-            labels_0based[str(i)],
+            syn_labels_0based[str(i)],
             indices[str(i)],
             str(i)
         ) for i in range(rep))
 
-    def test_conv_lrp(self, h5py_data, labels, fm, labels_0based, labels_cat, indices, rep, tmp_path):
+    def test_conv_lrp(self, h5py_data, syn_labels, syn_fm, syn_labels_0based, syn_labels_cat, indices, rep, tmp_path):
 
         fig, axes = plt.subplots(6, 2 * rep, squeeze=True)
         fig.set_size_inches(30, 30)
@@ -141,13 +134,13 @@ class TestDeepCOMBI(object):
                 axes[5][2 * i].plot(np.absolute(weights).reshape(-1, 3).sum(1), label='LRPAlpha1Beta0IgnoreBias')
 
         Parallel(n_jobs=-1, prefer="threads")(
-            delayed(f)(i, fm("3d")[str(i)][:], fm("2d")[str(i)][:], labels[str(i)], labels_cat[str(i)], indices[str(i)])
+            delayed(f)(i, syn_fm("3d")[str(i)][:], syn_fm("2d")[str(i)][:], syn_labels[str(i)], syn_labels_cat[str(i)], indices[str(i)])
             for i in range(rep))
 
         fig.savefig(os.path.join(IMG_DIR, 'montaez-full-coca-lrp.png'))
 
-    def test_hp_params(self, fm, labels_0based, labels_cat, indices, rep, output_path):
-        fm = fm('3d')
+    def test_hp_params(self, syn_fm, syn_labels_0based, syn_labels_cat, indices, rep, output_path):
+        syn_fm = syn_fm('3d')
 
         datasets = [fm[str(i)][:] for i in range(rep)]
 
@@ -174,9 +167,9 @@ class TestDeepCOMBI(object):
                 model = create_montaez_dense_model(g)
 
                 histories = [model.fit(x=fm[indices[str(i)].train],
-                                       y=labels_cat[str(i)][indices[str(i)].train],
+                                       y=syn_labels_cat[str(i)][indices[str(i)].train],
                                        validation_data=(
-                                           fm[indices[str(i)].test], labels_cat[str(i)][indices[str(i)].test]),
+                                           fm[indices[str(i)].test], syn_labels_cat[str(i)][indices[str(i)].test]),
                                        epochs=g['epochs'],
                                        callbacks=[
                                            TensorBoard(log_dir=os.path.join(output_path, 'tb', name + str(i)),
@@ -204,12 +197,12 @@ class TestDeepCOMBI(object):
         results = pd.DataFrame(list(entries))
         results.to_csv(os.path.join(output_path, os.environ['SGE_TASK_ID'] + '.csv'))
 
-    def test_svm_cnn_comparison(self, fm, labels, labels_cat, rep, indices):
+    def test_svm_cnn_comparison(self, syn_fm, syn_labels, syn_labels_cat, rep, indices):
         """ Compares performance of SVM and CNN models
         """
 
-        fm_3d = fm("3d")
-        fm_2d = fm("2d")
+        fm_3d = syn_fm("3d")
+        fm_2d = syn_fm("2d")
 
         def fit_cnn(x, y, idx):
             model = create_montaez_dense_model(best_params_montaez)
@@ -231,9 +224,9 @@ class TestDeepCOMBI(object):
 
         cnn_val_acc = Parallel(
             n_jobs=30)(
-            delayed(fit_cnn)(fm_3d[str(i)][:], labels_cat[str(i)], indices[str(i)]) for i in tqdm(range(1, rep)))
+            delayed(fit_cnn)(fm_3d[str(i)][:], syn_labels_cat[str(i)], indices[str(i)]) for i in tqdm(range(1, rep)))
         svm_val_acc = Parallel(
-            n_jobs=30)(delayed(fit_svm)(fm_2d[str(i)][:], labels[str(i)], indices[str(i)]) for i in tqdm(range(1, rep)))
+            n_jobs=30)(delayed(fit_svm)(fm_2d[str(i)][:], syn_labels[str(i)], indices[str(i)]) for i in tqdm(range(1, rep)))
 
         cnn_val_acc = cnn_val_acc * 100
         svm_val_acc = svm_val_acc * 100
@@ -243,7 +236,7 @@ class TestDeepCOMBI(object):
             np.mean(svm_val_acc), np.std(svm_val_acc), np.max(svm_val_acc), np.min(svm_val_acc),
             np.mean(cnn_val_acc), np.std(cnn_val_acc), np.max(cnn_val_acc), np.min(cnn_val_acc)))
 
-    def test_tpr_fwer(self, h5py_data, labels, labels_0based, labels_cat, fm, indices, rep, true_pvalues):
+    def test_tpr_fwer(self, h5py_data, syn_labels, syn_labels_0based, syn_labels_cat, syn_fm, indices, rep, true_pvalues):
         """ Compares combi vs dense curves
         """
 
@@ -300,18 +293,18 @@ class TestDeepCOMBI(object):
 
             return pvalues_list, is_only_zeros
 
-        fm_2d = fm("2d")
-        fm_3d = fm("3d")
+        fm_2d = syn_fm("2d")
+        fm_3d = syn_fm("3d")
 
         pvalues_per_run_combi = np.array(Parallel(n_jobs=-1, require='sharedmem')(delayed(
-            combi_compute_pvalues)(h5py_data[str(i)][:], fm_2d[str(i)][:], labels[str(i)]) for i in tqdm(range(rep))))
+            combi_compute_pvalues)(h5py_data[str(i)][:], fm_2d[str(i)][:], syn_labels[str(i)]) for i in tqdm(range(rep))))
 
         pvalues_per_run_rpvt = np.array(Parallel(n_jobs=-1, require='sharedmem')(delayed(
-            chi_square)(h5py_data[str(i)][:], labels[str(i)]) for i in tqdm(range(rep))))
+            chi_square)(h5py_data[str(i)][:], syn_labels[str(i)]) for i in tqdm(range(rep))))
 
         # len(thresholds) * len(window_sizes) * 10020
         a = Parallel(n_jobs=-1, require='sharedmem')(delayed(
-            challenger_compute_pvalues)(h5py_data[str(i)][:], fm_3d[str(i)][:], labels_cat[str(i)], labels[str(i)],
+            challenger_compute_pvalues)(h5py_data[str(i)][:], fm_3d[str(i)][:], syn_labels_cat[str(i)], syn_labels[str(i)],
                                         indices[str(i)]) for i in tqdm(range(rep)))
 
         # INNvestigate bugfix
@@ -420,15 +413,15 @@ class TestDeepCOMBI(object):
             os.path.join(IMG_DIR, 'tpr_fwer_montaez2_k_coca_a1b0-bugfix-100-{}bugs.png'.format(zeros_index.sum())),
             dpi=300)
 
-    def test_lrp_svm(self, h5py_data, fm, indices, rep, tmp_path):
+    def test_lrp_svm(self, h5py_data, syn_fm, indices, rep, tmp_path):
         """ Compares efficiency of the combi method with several TTBR
         """
         ttbrs = [20, 6, 1, 0]
         h5py_data = h5py_data['4'][:]
         idx = indices['4']
         fig, axes = plt.subplots(len(ttbrs), 4, sharex='col')
-        x_3d = fm("3d")['0'][:]
-        x_2d = fm("2d")['0'][:]
+        x_3d = syn_fm("3d")['0'][:]
+        x_2d = syn_fm("2d")['0'][:]
 
         for i, ttbr in enumerate(ttbrs):
             print('Using tbrr={}'.format(ttbr))
@@ -450,7 +443,7 @@ class TestDeepCOMBI(object):
 
             model = iutils.keras.graph.model_wo_softmax(model)
             analyzer = innvestigate.analyzer.LRPAlpha1Beta0(model)
-            weights = analyzer.analyze(x).sum(0)
+            weights = analyzer.analyze(x_3d).sum(0)
 
             top_indices_sorted, postprocessed_weights = postprocess_weights(
                 weights, top_k, filter_window_size, p_svm, p_pnorm_filter)

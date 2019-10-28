@@ -12,7 +12,7 @@ from tensorflow.python.client import device_lib
 from torch.utils.data.sampler import SubsetRandomSampler
 from tqdm import tqdm
 
-from parameters_complete import SYN_DATA_DIR, ttbr as ttbr, n_subjects, pnorm_feature_scaling, inform_snps, seed
+from parameters_complete import SYN_DATA_DIR, ttbr as ttbr, syn_n_subjects, pnorm_feature_scaling, inform_snps, seed
 
 
 def get_available_gpus():
@@ -59,7 +59,7 @@ def check_genotype_unique_allels(genotype):
                 for i in range(genotype.shape[1])]) <= 3)
 
 
-def generate_syn_genotypes(root_path=SYN_DATA_DIR, prefix="syn", n_subjects=n_subjects, n_info_snps=20, n_noise_snps=10000, quantity=1):
+def generate_syn_genotypes(root_path=SYN_DATA_DIR, prefix="syn", n_subjects=syn_n_subjects, n_info_snps=20, n_noise_snps=10000, quantity=1):
     """ Generate synthetic genotypes and labels by removing all minor allels with low frequency, and missing SNPs.
         First step of data preprocessing, has to be followed by string_to_featmat()
         > Checks that that each SNP in each chromosome has at most 2 unique values in the whole dataset.
@@ -214,20 +214,28 @@ def char_matrix_to_featmat(data, embedding_type='2d', norm_feature_scaling=pnorm
 
 
 
-def h5py_to_featmat(h5py_data, embedding_type='2d', overwrite=False):
-    """ - Transforms numpy matrix of chars to a tensor of features.
+def h5py_to_featmat(embedding_type='2d', overwrite=False):
+    """
+    Transforms a h5py dictionary of genomic matrix of chars to a tensor of features
+    {'0': genomic_mat_0, '1': genomic_mat_1,..., 'rep': genomic_mat_rep }
+        =>  {'0': feat_mat_0, '1': feat_mat_1,..., 'rep': feat_mat_rep }
+    :param embedding_type: 3d ( n_subjects, 3*n_snps) or 2d ( n_subjects, n_snps, 3)
+    :param overwrite:
+    :return:
+    """
+    """ - Transforms raw genomic matrix of chars to a tensor of features.
         - Encode SNPs with error to [0,0,0] 
         - Does NOT change shape or perform modifications
         Second and final step of data preprocessing.
     """
-    
-    fm_path = os.path.join(SYN_DATA_DIR, embedding_type + '_syn_fm.h5py')
     data_path = os.path.join(SYN_DATA_DIR, 'syn_data.h5py')
+
+    fm_path = os.path.join(SYN_DATA_DIR, embedding_type + '_syn_fm.h5py')
 
     if overwrite:
         try:
             os.remove(fm_path)
-        except expression as identifier:
+        except (FileNotFoundError, OSError):
             pass
 
     if not overwrite:
@@ -252,6 +260,7 @@ def h5py_to_featmat(h5py_data, embedding_type='2d', overwrite=False):
 
 def moving_average(weights, window, pnorm_filter):
     """
+    Weights postprocessing filter based on a moving average
     Inspired from https://uk.mathworks.com/matlabcentral/fileexchange/12276-moving_average-v3-1-mar-2008
     """
 
@@ -270,6 +279,7 @@ def moving_average(weights, window, pnorm_filter):
 
 def chi_square(data, labels):
     """
+    Computes pvalues given data and labels
     data: Char matrix (n * n_snp * 2)
     labels: -1, 1 encoding
     filter_indices: array of indices ordering the supposed top k p values
@@ -360,9 +370,16 @@ def plot_pvalues(complete_pvalues, top_indices_sorted, axes ):
         axes.set_xlabel('SNP position')
 
     
-def compute_metrics(pvalues,truth, threshold):
-    n_experiments = pvalues.shape[0]
-    selected_pvalues_mask = (pvalues <= threshold) # n, n_snp
+def compute_metrics(scores, truth, threshold):
+    """
+    Computes True Positive Rate, Expected Number of False Positives, Family-wide error rate and precision
+    :param scores: Pvalues
+    :param truth: Vector of size (n_snps) with 1s where the loci are informative, else 0s
+    :param threshold: Loci with scores greater than this value will be considered informative
+    :return: tpr, enfr, fwer, precision
+    """
+    n_experiments = scores.shape[0]
+    selected_pvalues_mask = (scores <= threshold) # n, n_snp
 
     tp = (selected_pvalues_mask & truth).sum()
     fp = (selected_pvalues_mask & np.logical_not(truth)).sum()
@@ -377,12 +394,26 @@ def compute_metrics(pvalues,truth, threshold):
     return tpr, enfr, fwer, precision
 
 def postprocess_weights(weights,top_k, filter_window_size, p_svm, p_pnorm_filter):
-    weights_ = postprocess_weights_without_avg(weights, p_svm)
-    weights_ = moving_average(weights_,filter_window_size, p_pnorm_filter)
-    top_indices_sorted = weights_.argsort()[::-1][:top_k] # Gets indices of top_k greatest elements
-    return top_indices_sorted, weights_
+    """
+    Rescales weights to unit p-norm, then run a moving average and returns the top_k greatest indices
+    :param weights: SVM weights or relevance mapping from which draw the top_k greatest indices
+    :param top_k: number of selected indices
+    :param filter_window_size: size of window during the moving average
+    :param p_svm: norm used in the p_normalization step
+    :param p_pnorm_filter: norm used in the moving average
+    :return: sorted indices with top k greatest pvalues, averaged weights
+    """
+    averaged_weights = postprocess_weights_without_avg(weights, p_svm)
+    averaged_weights = moving_average(averaged_weights,filter_window_size, p_pnorm_filter)
+    top_indices_sorted = averaged_weights.argsort()[::-1][:top_k] # Gets indices of top_k greatest elements
+    return top_indices_sorted, averaged_weights
 
 def postprocess_weights_without_avg(weights, p_svm):
+    """
+    First step of weights postprocessing. Rescales weights to unit 2-norm
+    :input  shape (n_snps * 3)
+    :return shape (n_snps)
+    """
     if np.count_nonzero(weights)==0:
         return np.zeros(weights.reshape(-1, 3).shape[0])
     weights_ = np.absolute(weights)/np.linalg.norm(weights, ord=2)
@@ -392,96 +423,5 @@ def postprocess_weights_without_avg(weights, p_svm):
     return weights_
 
 
-class EnforceNeg(Constraint):
-    """Constrains the weights to be negative.
-    """
-
-    def __call__(self, w):
-        w *= tf.backend.cast(tf.backend.greater_equal(-w, 0.), tf.backend.floatx())
-        return w
 
 
-
-
-def train_torch_model(model, data, labels, indices, g, log_path):
-    data = torch.FloatTensor(data).cuda()
-    labels = torch.LongTensor(labels).cuda()
-    criterion = torch.nn.BCELoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=g['lr'], weight_decay=g['l2_reg'])
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=g['patience'], factor=g['factor'], verbose=True)
-
-    train_sampler = SubsetRandomSampler(indices.train)
-    validation_sampler = SubsetRandomSampler(indices.test)
-    dataset = data_utils.TensorDataset(data, labels)
-    train_loader = torch.utils.data.DataLoader(dataset, batch_size=g['batch_size'], sampler=train_sampler)
-    validation_loader = torch.utils.data.DataLoader(dataset,batch_size=g['batch_size'], sampler=validation_sampler)
-    
-   
-    
-    for epoch in range(g['epochs']):
-        # TRAIN
-        model.train()
-        correct = 0
-        total = 0
-        running_train_loss = 0
-        for batch, y in train_loader:
-            # L1 loss
-            l1_loss = None
-            for param in model.parameters():
-                if l1_loss is None: 
-                    l1_loss = param.norm(p=1)
-                else: 
-                    l1_loss = l1_loss + param.norm(p=1)
-            # Forward pass
-            loss = criterion(model(batch), y.float())
-            loss = loss + g['l1_reg'] * l1_loss.float()
-            running_train_loss += loss.item()
-            
-            # Backward pass
-            optimizer.zero_grad()
-            loss.backward()
-            scheduler.step(epoch)
-            _, predicted = torch.max(model(batch).data, 1)
-            total += y.size(0)
-            correct += (predicted == y).sum().item()
-        running_train_acc = 100 * correct / total
-
-        # EVAL
-        model.eval() 
-        correct = 0
-        total = 0
-        running_val_loss = 0
-        for batch, y in validation_loader:
-            # Loss
-            outputs = model(batch) # N * 2
-            running_val_loss += criterion(outputs, y.float()).item()
-            # Val acc
-            _, predicted = torch.max(outputs.data, 1)
-            total += y.size(0)
-            correct += (predicted == y).sum().item()
-        running_val_acc = 100 * correct / total
-
-        # TB logging
-        logger = tensorflow.summary.FileWriter(log_path)
-        logger.add_summary(tensorflow.Summary(value=[tensorflow.Summary.Value(tag='loss', simple_value=running_train_loss)]), epoch)
-        logger.add_summary(tensorflow.Summary(value=[tensorflow.Summary.Value(tag='accuracy', simple_value=running_train_acc)]), epoch)
-        logger.add_summary(tensorflow.Summary(value=[tensorflow.Summary.Value(tag='val_loss', simple_value=running_val_loss)]), epoch)
-        logger.add_summary(tensorflow.Summary(value=[tensorflow.Summary.Value(tag='val_accuracy', simple_value=running_val_acc)]), epoch)
-        
-    
-
-
-def evaluate_torch_model(model, data, labels):
- 
-    dataset = data_utils.TensorDataset(data, labels)
-    data_loader = torch.utils.data.DataLoader(dataset)
-
-    total = 0
-    correct = 0
-    for batch, y in data_loader:
-        outputs = model(batch) # N * 2
-        # Val acc
-        _, predicted = torch.max(outputs.data, 1)
-        total += y.size(0)
-        correct += (predicted == y).sum().item()
-    return (100 * correct / total)

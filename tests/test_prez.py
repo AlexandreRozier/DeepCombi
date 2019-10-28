@@ -17,13 +17,13 @@ plt.rc('font', family='serif')
 
 class TestPrez(object):
 
-    def test_plot_svm(self, fm, labels):
-        x_2d = fm('2d')['0'][:]
+    def test_plot_svm(self, syn_fm, syn_labels):
+        x_2d = syn_fm('2d')['0'][:]
 
         fig, axes = plt.subplots(1)
             
 
-        toy_classifier.fit(x_2d, labels['0'])
+        toy_classifier.fit(x_2d, syn_labels['0'])
         svm_weights = toy_classifier.coef_[0] # n_snps * 3
         abs_weights = np.absolute(svm_weights).reshape(-1,3).sum(1)
         abs_weights = abs_weights/np.max(abs_weights)
@@ -45,7 +45,7 @@ class TestPrez(object):
 
 
     
-    def test_compare_lrp_svm(self,h5py_data, labels, fm, labels_0based, labels_cat, indices,rep, tmp_path):
+    def test_compare_lrp_svm(self, h5py_data, syn_labels, syn_fm, syn_labels_0based, syn_labels_cat, indices, rep, tmp_path):
         best_params_montaez_2 = {
    
             'epochs': 500,
@@ -59,10 +59,10 @@ class TestPrez(object):
         }
         fig, axes = plt.subplots(2,2, squeeze=True)
         fig.suptitle('Relevance Distribution from SVM and LRP Preprocessing ', fontsize=16)
-        x_3d = fm("3d")['0'][:]
-        x_2d = fm("2d")['0'][:]
-        y = labels['0']
-        y_0b = labels_cat['0']
+        x_3d = syn_fm("3d")['0'][:]
+        x_2d = syn_fm("2d")['0'][:]
+        y = syn_labels['0']
+        y_0b = syn_labels_cat['0']
         idx = indices['0']
 
         model = create_montaez_dense_model(best_params_montaez_2)

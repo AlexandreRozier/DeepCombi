@@ -26,15 +26,18 @@ class TestLOTR(object):
 
 
     def test_class_proportions(self, real_labels, real_idx):
-        train_labels = real_labels[real_idx.train]
-        test_labels = real_labels[real_idx.test]
+        for disease in disease_IDs:
+            labels = real_labels(disease)
+            idx = real_idx()
+            train_labels = labels[real_idx.train]
+            test_labels = labels[real_idx.test]
+            print("Disease: {}".format(disease))
+            print("Train: Cases:{};  Controls:{}".format((train_labels > 0.5).sum(), (train_labels < 0.5).sum()))
+            print("Test: Cases:{};  Controls:{}".format((test_labels > 0.5).sum(), (test_labels < 0.5).sum()))
 
-        print("Train: Cases:{};  Controls:{}".format((train_labels > 0.5).sum(), (train_labels < 0.5).sum()))
-        print("Test: Cases:{};  Controls:{}".format((test_labels > 0.5).sum(), (test_labels < 0.5).sum()))
 
 
-
-    def test_hpsearch(self, real_h5py_data, real_labels_cat, real_idx):
+    def test_hpsearch(self, real_genomic_data, real_labels_cat, real_idx):
         """ Runs HP search for a subset of chromosomes
         """
         # Each node gets a set of chromosomes to process :D
@@ -45,7 +48,7 @@ class TestLOTR(object):
 
             # 1. Do hyperparam search on each chromosome and find parameters with BEST VAL ACCURAC
 
-            data = real_h5py_data(disease, chrom)
+            data = real_genomic_data(disease, chrom)
             fm = char_matrix_to_featmat(data, '3d',real_pnorm_feature_scaling)
             labels_cat = real_labels_cat(disease)
             idx = real_idx(disease)
@@ -89,8 +92,8 @@ class TestLOTR(object):
                     model=talos_wrapper,
                     experiment_name='final_results/talos/'+ disease + '/'+str(chrom))
 
-    def test_permutations(self, real_h5py_data, real_labels, real_labels_0based, real_labels_cat, real_idx, alphas,
-                          alphas_EV):
+    def test_permutations(self, real_genomic_data, real_labels, real_labels_0based, real_labels_cat, real_idx, alphas,
+                          alphas_ev):
         """ Computes t_star for each chromosome thanks to the permutation method.
         """
 
@@ -98,13 +101,13 @@ class TestLOTR(object):
 
         # 1. Do hyperparam search on each chromosome and find parameters with BEST VAL ACCURAC
 
-        data = real_h5py_data(chrom)
+        data = real_genomic_data(chrom)
 
         fm = char_matrix_to_featmat(data, '3d', real_pnorm_feature_scaling)
 
         n_permutations = 3
         alpha_sig = float(alphas[chrom])
-        alpha_sig_EV = float(alphas_EV[chrom])
+        alpha_sig_EV = float(alphas_ev[chrom])
         # hp = pickle.load(open(os.path.join(FINAL_RESULTS_DIR,'hyperparams','chrom{}.p'.format(chrom)),'rb'))
         hp = best_params_montaez
         hp['n_snps'] = fm.shape[1]
@@ -162,7 +165,7 @@ class TestLOTR(object):
                 raise ValueError(identifier)
 
 
-    def test_train_models_with_best_params(self, real_h5py_data, real_labels_cat, real_idx):
+    def test_train_models_with_best_params(self, real_genomic_data, real_labels_cat, real_idx):
         """ Generate a per-chromosom trained model for futur LRP-mapping quality assessment
         TRAINS ON WHOLE DATASET
         """
@@ -176,7 +179,7 @@ class TestLOTR(object):
 
 
         # Load data, hp & labels
-        data = real_h5py_data(disease_id, chrom)
+        data = real_genomic_data(disease_id, chrom)
         fm = char_matrix_to_featmat(data, '3d', real_pnorm_feature_scaling)
 
         labels_cat = real_labels_cat(disease_id)
@@ -205,7 +208,7 @@ class TestLOTR(object):
         K.clear_session()
         del data, fm, model
 
-    def test_hpsearch_crohn(self, real_h5py_data, real_labels_cat, real_idx):
+    def test_hpsearch_crohn(self, real_genomic_data, real_labels_cat, real_idx):
         """ Runs HP search for a subset of chromosomes
         """
 
@@ -214,7 +217,7 @@ class TestLOTR(object):
         for chrom in [3]:  # range(1,23):
 
 
-            data = real_h5py_data(disease, chrom)
+            data = real_genomic_data(disease, chrom)
             fm = char_matrix_to_featmat(data, '3d', real_pnorm_feature_scaling)
             labels_cat = real_labels_cat(disease)
             idx = real_idx(disease)
@@ -255,9 +258,9 @@ class TestLOTR(object):
                        experiment_name=os.path.join(FINAL_RESULTS_DIR,'talos',disease, str(chrom)))
 
 
-    def test_crohn_c3_parameters(self, real_h5py_data, real_labels_cat, real_idx):
+    def test_crohn_c3_parameters(self, real_genomic_data, real_labels_cat, real_idx):
 
-        data = real_h5py_data('CD', 3)
+        data = real_genomic_data('CD', 3)
         fm = char_matrix_to_featmat(data, '3d', real_pnorm_feature_scaling)
 
         hp = dict(epochs=600,dropout_rate=0.3,hidden_neurons=10,l1_reg=0.0001,l2_reg=0,lr=0.01,n_snps=fm.shape[1])

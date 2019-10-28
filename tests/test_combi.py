@@ -25,7 +25,7 @@ class TestCombi(object):
             b_labels =  l['X'][:]
             b_data =  d['X'][:]
         toy_classifier = svm.LinearSVC(C=Cs, penalty='l2', tol=svm_epsilon, verbose=0, dual=True)
-        bfm = h5py_to_featmat( b_data )
+        bfm = h5py_to_featmat()
 
         toy_classifier.fit(bfm, b_labels)
         print("SVM score on Bettina's data: {}".format(toy_classifier.score(bfm, b_labels)))
@@ -39,7 +39,7 @@ class TestCombi(object):
             train_accuracies = np.zeros(n)
             labels = generate_syn_phenotypes(root_path=SYN_DATA_DIR, ttbr=ttbr)
             for i, key in enumerate(list(h5py_data.keys())):
-                featmat = h5py_to_featmat( h5py_data[key][:] )
+                featmat = h5py_to_featmat()
                 toy_classifier.fit(featmat, labels[key])
                 train_accuracies[i] = toy_classifier.score(featmat, labels[key])
             result[str(ttbr)] = 'mean:{}; std: {}; best:{}'.format(np.mean(train_accuracies), np.std(train_accuracies), np.max(train_accuracies))
@@ -47,20 +47,20 @@ class TestCombi(object):
         print(result)
 
 
-    def test_pvalues_generation(self, h5py_data, labels):
-        pvalues = chi_square(h5py_data['0'][:], labels['0'])
+    def test_pvalues_generation(self, h5py_data, syn_labels):
+        pvalues = chi_square(h5py_data['0'][:], syn_labels['0'])
         assert (-np.log10(pvalues)).max() > 9
 
-    def test_pvalues_subset_generation(self, h5py_data, labels):
+    def test_pvalues_subset_generation(self, h5py_data, syn_labels):
         h5py_data = h5py_data['0'][:]
         indices = random_state.randint(h5py_data.shape[1], size=top_k)
-        pvalues = chi_square(h5py_data[:,indices,:], labels['0'])
+        pvalues = chi_square(h5py_data[:,indices,:], syn_labels['0'])
         assert(len(pvalues) == len( indices))
         assert(min(pvalues) >= 0 and max(pvalues) <=1)
     
-    def test_combi(self,h5py_data, labels):
+    def test_combi(self, h5py_data, syn_labels):
         h5py_data = h5py_data['0'][:]
-        labels = labels['0']
+        syn_labels = syn_labels['0']
         fm = char_matrix_to_featmat(h5py_data, '2d', real_pnorm_feature_scaling)
         top_indices_sorted, pvalues, _ = combi_method(toy_classifier, h5py_data, fm, labels,
                                 filter_window_size, top_k)
@@ -215,10 +215,10 @@ class TestCombi(object):
         fig.savefig(os.path.join(IMG_DIR,'tpr_fwer_k.png'), dpi=300)
     
 
-    def test_joblib_speedup(self, labels, fm, h5py_data):
+    def test_joblib_speedup(self, syn_labels, syn_fm, h5py_data):
         h5py_data = h5py_data['0'][:]
-        labels = labels['0']
-        fm = fm('2d')['0'][:]
+        syn_labels = syn_labels['0']
+        syn_fm = syn_fm('2d')['0'][:]
         n_permutations = 1000
 
         start_time = time.time()
@@ -278,13 +278,13 @@ class TestCombi(object):
         fig.savefig(os.path.join(IMG_DIR,'tpr_fwer_ttbr.png'), dpi=300)
     
 
-    def test_permutations(self, h5py_data, fm, labels, rep ):
+    def test_permutations(self, h5py_data, syn_fm, syn_labels, rep):
         true_pvalues = np.zeros((rep, n_total_snps), dtype=bool)
         true_pvalues[:,int(noise_snps/2):int(noise_snps/2)+inform_snps] = True
 
         h5py_data = h5py_data['0'][:]
-        labels = labels['0']
-        fm = fm('2d')['0'][:]
+        syn_labels = syn_labels['0']
+        syn_fm = syn_fm('2d')['0'][:]
         n_permutations = 100
         t_star = permuted_combi_method(h5py_data, fm, labels, n_permutations, alpha_sig_toy, filter_window_size, top_k)
         pvalues = chi_square(h5py_data, labels)

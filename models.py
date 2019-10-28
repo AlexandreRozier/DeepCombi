@@ -9,12 +9,8 @@ from keras.models import Sequential, load_model
 from keras.regularizers import l1_l2
 from talos.utils.gpu_utils import multi_gpu, parallel_gpu_jobs
 
-from helpers import EnforceNeg
 from helpers import get_available_gpus
 
-keras.constraints.EnforceNeg = EnforceNeg  # Absolutely crucial
-
-PREFIX = os.environ['PREFIX']
 
 
 
@@ -82,7 +78,7 @@ def create_convdense_model(params):
                         l2=params['l2_reg']
                     ),
                     kernel_initializer=keras.initializers.glorot_normal(),
-                    bias_constraint=EnforceNeg()
+
                     ))
         
 
@@ -95,7 +91,7 @@ def create_convdense_model(params):
                         l1=params['l1_reg'], 
                         l2=params['l2_reg']
                     ),
-                    bias_constraint=EnforceNeg()))
+                    ))
 
 
     model.compile(loss='binary_crossentropy',
@@ -118,7 +114,7 @@ def create_lenet_model(params):
                         l2=params['l2_reg']
                     ),
                     kernel_initializer=keras.initializers.glorot_normal(),
-                    bias_constraint=EnforceNeg()
+
                     ))
         
     model.add(MaxPooling1D(params['pooling_ratio']))
@@ -132,7 +128,7 @@ def create_lenet_model(params):
                         l2=params['l2_reg']
                     ),
                     kernel_initializer=keras.initializers.glorot_normal(),
-                    bias_constraint=EnforceNeg()
+
                     ))
         
     model.add(MaxPooling1D(params['pooling_ratio']))
@@ -147,7 +143,7 @@ def create_lenet_model(params):
                         l2=params['l2_reg']
                     ),
                     kernel_initializer=keras.initializers.glorot_normal(),
-                    bias_constraint=EnforceNeg()
+
                     ))
         
     model.add(MaxPooling1D(params['pooling_ratio']))
@@ -162,7 +158,7 @@ def create_lenet_model(params):
                         l2=params['l2_reg']
                     ),
                     kernel_initializer=keras.initializers.glorot_normal(),
-                    bias_constraint=EnforceNeg()
+
                     ))
         
     model.add(MaxPooling1D(params['pooling_ratio']))
@@ -177,7 +173,7 @@ def create_lenet_model(params):
                         l1=params['l1_reg'], 
                         l2=params['l2_reg']
                     ),
-                    bias_constraint=EnforceNeg()))
+                    ))
 
 
     model.compile(loss='categorical_crossentropy',
@@ -201,7 +197,7 @@ def create_clairvoyante_model(params):
                             l2=params['l2_reg']
                         ),
                         kernel_initializer=keras.initializers.glorot_normal(),
-                        bias_constraint=EnforceNeg()
+
                         ))
             
         model.add(AveragePooling1D(4))
@@ -215,7 +211,7 @@ def create_clairvoyante_model(params):
                             l2=params['l2_reg']
                         ),
                         kernel_initializer=keras.initializers.glorot_normal(),
-                        bias_constraint=EnforceNeg()
+
                         ))
             
         model.add(AveragePooling1D(3))
@@ -229,7 +225,7 @@ def create_clairvoyante_model(params):
                             l1=params['l1_reg'], 
                             l2=params['l2_reg']
                         ),
-                        bias_constraint=EnforceNeg()))
+                        ))
 
         model.add(Dense(activation='sigmoid',
                         units=84,
@@ -237,14 +233,14 @@ def create_clairvoyante_model(params):
                             l1=params['l1_reg'], 
                             l2=params['l2_reg']
                         ),
-                        bias_constraint=EnforceNeg()))
+                        ))
         model.add(Dense(activation='sigmoid',
                         units=1,
                         kernel_regularizer=l1_l2(
                             l1=params['l1_reg'], 
                             l2=params['l2_reg']
                         ),
-                        bias_constraint=EnforceNeg()))
+                        ))
 
 
         model.compile(loss='binary_crossentropy',
@@ -268,7 +264,7 @@ def create_explanable_conv_model(params):
                             l2=params['l2_reg']
                         ),
                         kernel_initializer=keras.initializers.glorot_normal(),
-                        bias_constraint=EnforceNeg()
+
                         ))
             
         model.add(Conv1D(activation='relu',
@@ -279,7 +275,7 @@ def create_explanable_conv_model(params):
                             l2=params['l2_reg']
                         ),
                         kernel_initializer=keras.initializers.glorot_normal(),
-                        bias_constraint=EnforceNeg()
+
                         ))
         model.add(AveragePooling1D(2))
 
@@ -293,7 +289,7 @@ def create_explanable_conv_model(params):
                             l1=params['l1_reg'], 
                             l2=params['l2_reg']
                         ),
-                        bias_constraint=EnforceNeg()))
+                        ))
 
 
         model.compile(loss='binary_crossentropy',
@@ -364,8 +360,6 @@ def train_dummy_dense_model(features, labels, indices, params):
 
         model.add(Dense(activation='relu',
                         units=2,
-                        bias_constraint=EnforceNeg()  # Negative bias are crucial for LRP
-
 
                         ))
         model.add(Activation('softmax'))

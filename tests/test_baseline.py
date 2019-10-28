@@ -1,119 +1,114 @@
 import os
 
-import innvestigate
-import innvestigate.utils as iutils
 import matplotlib
 import numpy as np
 from keras.layers import Dense, Flatten
 from keras.models import Sequential
-from sklearn import svm
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import roc_auc_score
 from sklearn.tree import DecisionTreeClassifier
 from tqdm import tqdm
 
-from parameters_complete import (Cs, PARAMETERS_DIR, IMG_DIR, seed)
+from combi import toy_classifier
+from parameters_complete import (Cs, PARAMETERS_DIR, seed)
 
 matplotlib.use('Agg')
 
-from matplotlib import pyplot as plt
 
 class TestBaselines(object):
+    """
+    This class tests the validation accuracy of several baselines on the synthetic dataset.
+    SVM, kernel SVM, Linear Regression,  Decision Trees, Dense Neural Network
+    """
 
-    CONF_PATH = os.path.join(PARAMETERS_DIR, os.environ['SGE_TASK_ID'])
-
-
-
-    def test_svm_baseline(self, f_and_l):
+    def test_svm_baseline(self, syn_fm, syn_labels, indices):
         """
         SVM needs 2D data and does not support one hot encoded labels
         """
+        features = syn_fm('2d')['0'][:]
+        labels = syn_labels['0'][:]
+        idx = indices['0']
 
-        features, labels = f_and_l(embedding_type="2d", categorical=False)
-        c_candidates = np.logspace(-5,1, 20) 
+        c_candidates = np.logspace(-5, -1, num=20)
+
         # More features than datapoints
         val_scores = np.zeros(len(c_candidates))
         train_scores = np.zeros(len(c_candidates))
-        for i,c in tqdm(enumerate(c_candidates)):
-
-            toy_classifier = svm.LinearSVC(C=c, penalty='l2', verbose=0, dual=True, 
-                                        random_state=seed)
-            toy_classifier.fit(features.train, labels.train )
-            train_scores[i] = toy_classifier.score(features.train, labels.train )
-            val_scores[i] = toy_classifier.score(features.test, labels.test )
+        for i, c in tqdm(enumerate(c_candidates)):
+            toy_classifier.fit(features[idx.train], labels[idx.train])
+            train_scores[i] = toy_classifier.score(features[idx.train], labels[idx.train])
+            val_scores[i] = toy_classifier.score(features[idx.test], labels[idx.test])
 
         max_idx = np.argmax(val_scores)
-        print("SVM train_acc: {} (std={}) ; obtained with C={} ".format(train_scores[max_idx],np.std(train_scores), train_scores[max_idx]))
-        print("SVM val_acc: {} (std={}) ; obtained with C={}".format(val_scores[max_idx],np.std(val_scores), c_candidates[max_idx]))
+        print("SVM train_acc: {} (std={}) ; obtained with C={} ".format(train_scores[max_idx], np.std(train_scores),
+                                                                        train_scores[max_idx]))
+        print("SVM val_acc: {} (std={}) ; obtained with C={}".format(val_scores[max_idx], np.std(val_scores),
+                                                                     c_candidates[max_idx]))
 
-    def test_kernel_svm_baseline(self, f_and_l):
+    def test_kernel_svm_baseline(self, syn_fm, syn_labels, indices):
         """
         SVM needs 2D data and does not support one hot encoded labels
         """
+        features = syn_fm('2d')['0'][:]
+        labels = syn_labels['0'][:]
+        idx = indices['0']
 
-        features, labels = f_and_l(embedding_type="2d", categorical=False)
-        c_candidates = np.logspace(-5,0, 10) 
-                
+        c_candidates = np.logspace(-5, 0, 10)
+
         scores = np.zeros(len(c_candidates))
-        for i,c in tqdm(enumerate(c_candidates)):
-
-            toy_classifier = svm.SVC(C=c, kernel='rbf', verbose=0, random_state=seed)
-            toy_classifier.fit(features.train, labels.train )
-            scores[i] = toy_classifier.score(features.test, labels.test )
+        for i, c in tqdm(enumerate(c_candidates)):
+            toy_classifier.fit(features[idx.train], labels[idx.train])
+            scores[i] = toy_classifier.score(features[idx.test], labels[idx.test])
 
         max_idx = np.argmax(scores)
-        
-        
+
         print("Kernel SVM val_acc: {} obtained with C={}".format(scores[max_idx], c_candidates[max_idx]))
 
+    def test_decision_trees_baseline(self, syn_fm, syn_labels, indices):
 
+        features = syn_fm('2d')['0'][:]
+        labels = syn_labels['0'][:]
+        idx = indices['0']
 
-    def test_decision_trees_baseline(self, f_and_l):
+        dt_classifier = DecisionTreeClassifier(random_state=seed)
+        dt_classifier.fit(features[idx.train], labels[idx.train])
+        score = dt_classifier.score(features[idx.test], labels[idx.test])
 
-        features, labels = f_and_l(embedding_type="2d", categorical=False)
+        probas = dt_classifier.predict_proba(features[idx.test])[:, 1]
 
-        toy_classifier = DecisionTreeClassifier(random_state=seed)
-        toy_classifier.fit(features.train, labels.train)
-        score = toy_classifier.score(features.test, labels.test)
+        print("Decision Trees val_acc: {}".format(score))
 
-        probas = toy_classifier.predict_proba(features.test)[:, 1]
-        roc_auc = roc_auc_score(labels.test, probas)
-
-        print("Decision Trees val_acc: {}; ROC Auc: {}".format(score, roc_auc))
-
-    def test_linear_toy_classifier_baseline(self, f_and_l):
+    def test_linear_toy_classifier_baseline(self, syn_fm, syn_labels, indices):
         """
         Uses the same algorithm as LinearSVC, but with log loss instead of hinge loss.
         """
-        features, labels = f_and_l(embedding_type="2d", categorical=False)
+        features = syn_fm('2d')['0'][:]
+        labels = syn_labels['0'][:]
+        idx = indices['0']
 
-        toy_classifier = LogisticRegression(
-            C=Cs, penalty="l2", dual=True, verbose=0, random_state=seed)
-        toy_classifier.fit(features.train, labels.train)
-        assert(toy_classifier.classes_.shape[0] == 2)
-        score = toy_classifier.score(features.test, labels.test)
+        lr_classifier = LogisticRegression( C=Cs, penalty="l2", dual=True, verbose=0, random_state=seed)
+        lr_classifier.fit(features[idx.train], labels[idx.train])
+        assert (lr_classifier.classes_.shape[0] == 2)
+        score = lr_classifier.score(features[idx.test], labels[idx.test])
 
-        probas = toy_classifier.predict_proba(features.test)[:, 1]
-        roc_auc = roc_auc_score(labels.test, probas)
 
-        print("Logistic val_acc: {}; ROC Auc: {}".format(score, roc_auc))
+        print("Logistic val_acc: {}".format(score))
 
-    def test_dense_model_baseline(self, f_and_l):
+    def test_dense_model_baseline(self, syn_fm, syn_labels, indices):
         params = {
             'epochs': 20,
         }
 
-        features, labels = f_and_l(embedding_type="3d", categorical=True)
-        features = features['0']
-        labels = labels['0']
+        features = syn_fm('2d')['0'][:]
+        labels = syn_labels['0'][:]
+        idx = indices['0']
+
         model = Sequential()
         model.add(Flatten(input_shape=(10020, 3)))
-
 
         model.add(Dense(activation='relu',
                         units=2,
                         ))
-        
+
         model.add(Dense(activation='softmax',
                         units=2,
                         ))
@@ -124,49 +119,12 @@ class TestBaselines(object):
                       metrics=['accuracy'])
 
         model.summary()
-         # Model fitting
-        history = model.fit(x=features.train, y=labels.train ,
-                            validation_data=(features.test, labels.test ),
+
+        # Model fitting
+        history = model.fit(x=features[idx.train], y=labels[idx.train],
+                            validation_data=(features[idx.test], labels[idx.test]),
                             epochs=params['epochs'],
                             verbose=1)
         score = max(history.history['val_acc'])
         print("DNN val_acc: {}".format(score))
 
-        model_wo_sm = iutils.keras.graph.model_wo_softmax(model)
-        model_wo_sm.summary()
-       
-        # Creating an analyzer
-        
-        inf = 0
-        sup = 10020
-        x = range(inf, sup)
-        f, (ax1,ax2,ax3, ax4) = plt.subplots(4)
-        dtaylor_analyzer = innvestigate.analyzer.LRPZ(model_wo_sm)
-        analysis = dtaylor_analyzer.analyze(features.all).sum(axis=2)
-        analysis = analysis[:,inf:sup]
-        ax1.scatter(x, analysis.sum(0), marker='x', alpha=0.7, label="LRPZ")
-        ax1.axvspan(5001, 5020, alpha=0.5, color='red')
-        ax1.legend(loc="upper right")
-
-        dtaylor_analyzer = innvestigate.analyzer.LRPZPlus(model_wo_sm)
-        analysis = dtaylor_analyzer.analyze(features.all).sum(axis=2)
-        analysis = analysis[:,inf:sup]
-        ax2.scatter(x, analysis.sum(0), marker='x', alpha=0.7, label='LRPZPlus')
-        ax2.axvspan(5001, 5020, alpha=0.5, color='red')
-        ax2.legend(loc="upper right")
-
-        dtaylor_analyzer = innvestigate.analyzer.DeepTaylor(model_wo_sm, {'low':-1,'high':1})
-        analysis = dtaylor_analyzer.analyze(features.all).sum(axis=2)
-        analysis = analysis[:,inf:sup]
-        ax3.scatter(x, analysis.sum(0), marker='x', alpha=0.7, label='DeepTaylor')
-        ax3.axvspan(5001, 5020, alpha=0.5, color='red')
-        ax3.legend(loc="upper right")
-
-        dtaylor_analyzer = innvestigate.analyzer.Gradient(model_wo_sm)
-        analysis = dtaylor_analyzer.analyze(features.all).sum(axis=2)
-        analysis = analysis[:,inf:sup]
-        ax4.scatter(x, analysis.sum(0), marker='x', alpha=0.7, label='Gradient')
-        ax4.axvspan(5001, 5020, alpha=0.5, color='red')
-        ax4.legend(loc="upper right")
-
-        f.savefig(os.path.join(IMG_DIR,'lrp.png'))

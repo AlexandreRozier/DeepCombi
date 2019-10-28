@@ -1,0 +1,2 @@
+round_epochs,val_loss,val_acc,loss,acc,dropout_rate,epochs,hidden_neurons,l1_reg,l2_reg,lr,n_snps
+600,1.3684049351637297,0.6108742004264393,1.1091697298049927,0.7853333333651225,0.3,600,10,0.0001,0,0.01,30637

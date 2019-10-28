@@ -28,7 +28,7 @@ FINAL_RESULTS_DIR = os.path.join(ROOT_DIR,'experiments','MONTAEZ_CD_C3_HP')
 
 ########
 ttbr = 6
-n_subjects= 300  
+syn_n_subjects= 300
 inform_snps= 20  # 15-20
 noise_snps= 10000  # 10,000, even
 n_total_snps = inform_snps + noise_snps

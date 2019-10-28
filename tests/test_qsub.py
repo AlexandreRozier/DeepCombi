@@ -2,9 +2,8 @@ import os
 
 import keras
 
-from helpers import EnforceNeg, generate_name_from_params
+from helpers import  generate_name_from_params
 
-keras.constraints.EnforceNeg = EnforceNeg # Absolutely crucial
 
 import numpy as np
 import pickle
