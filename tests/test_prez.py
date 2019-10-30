@@ -45,7 +45,7 @@ class TestPrez(object):
 
 
     
-    def test_compare_lrp_svm(self, h5py_data, syn_labels, syn_fm, syn_labels_0based, syn_labels_cat, indices, rep, tmp_path):
+    def test_compare_lrp_svm(self, syn_genomic_data, syn_labels, syn_fm, syn_labels_0based, syn_labels_cat, indices, rep, tmp_path):
         best_params_montaez_2 = {
    
             'epochs': 500,

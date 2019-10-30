@@ -82,7 +82,7 @@ class TestLOTR(object):
                     y=labels_cat[idx.train],
                     x_val=fm[idx.test],
                     y_val=labels_cat[idx.test],
-                    reduction_method='gamify',
+                    #reduction_method='gamify',
                     # reduction_interval=10,
                     # reduction_window=10,
                     # reduction_metric='val_acc',
@@ -101,7 +101,7 @@ class TestLOTR(object):
 
         # 1. Do hyperparam search on each chromosome and find parameters with BEST VAL ACCURAC
 
-        data = real_genomic_data(chrom)
+        data = real_genomic_data('CD', chrom)
 
         fm = char_matrix_to_featmat(data, '3d', real_pnorm_feature_scaling)
 
@@ -151,7 +151,7 @@ class TestLOTR(object):
 
                 data.sort_values(by=['val_acc'], ascending=False, inplace=True)
                 best_hps = data[data['acc'] > 0.80].iloc[0].to_dict()
-                best_hps['epochs'] = 250
+                #best_hps['epochs'] = 250
                 #best_hps['hidden_neurons'] = 6
                 #best_hps['lr'] = 1e-4
                 #best_hps['l1_reg'] = 1e-5

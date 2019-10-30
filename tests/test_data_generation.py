@@ -5,36 +5,18 @@ import numpy as np
 import scipy
 from tqdm import tqdm
 
-from helpers import generate_syn_genotypes, generate_syn_phenotypes, h5py_to_featmat, check_genotype_unique_allels, \
+from helpers import generate_syn_genotypes, generate_syn_phenotypes, genomic_to_featmat, check_genotype_unique_allels, \
     chi_square
 from parameters_complete import (
-    SYN_DATA_DIR, noise_snps, inform_snps, n_total_snps, syn_n_subjects, ttbr as ttbr, disease_IDs, FINAL_RESULTS_DIR)
+    SYN_DATA_DIR, noise_snps, inform_snps, n_total_snps, syn_n_subjects, ttbr as ttbr, disease_IDs, FINAL_RESULTS_DIR,
+    REAL_DATA_DIR)
 
 
 class TestDataGeneration(object):
     """
     This class takes care of generating all synthetic and real data & labels
     """
-    
-        
-    def test_syntest_text_to_hdf5(self):
 
-        filename = 'data/bett_data.txt'
-        lines_nb = sum(1 for _ in open(filename))
-        data = np.zeros((lines_nb, 10020, 2))
-        with open(filename,'rb') as f:
-            for i, line in enumerate(f):
-                line = np.frombuffer(line, dtype='uint8')[:-1]
-                line = line.reshape(-1,3)[:,:2]
-                data[i] = line
-            assert i == lines_nb - 1
-        
-
-        with h5py.File('data/bett_data.h5py', 'w') as file:
-            file.create_dataset("X", data=data)
-            
-
-    
 
     def test_synthetic_genotypes_generation(self, rep):
         
@@ -51,16 +33,9 @@ class TestDataGeneration(object):
             # Checks that at most 3 unique allels exist
             check_genotype_unique_allels(genotype)
 
-    def test_synthetic_phenotypes_generation(self, rep):
-       
-        labels = generate_syn_phenotypes(ttbr=ttbr,
-                                         root_path=SYN_DATA_DIR, n_info_snps=inform_snps, n_noise_snps=noise_snps, quantity=rep)['0']
-        assert(labels.shape[0] == syn_n_subjects)
-
     
     def test_phenotype_invariance(self, rep):
         labels = generate_syn_phenotypes(root_path=SYN_DATA_DIR, quantity=rep)
-        
         labels2 = generate_syn_phenotypes(root_path=SYN_DATA_DIR, quantity=rep)
         
     
@@ -69,8 +44,8 @@ class TestDataGeneration(object):
 
     def test_proportion_of_labels(self, rep):
         
-        labels = generate_syn_phenotypes(ttbr=ttbr,
-                                         root_path=SYN_DATA_DIR, n_info_snps=inform_snps, n_noise_snps=noise_snps, quantity=rep)['0']
+        labels = generate_syn_phenotypes(root_path=SYN_DATA_DIR, tower_to_base_ratio=ttbr, n_info_snps=inform_snps,
+                                         n_noise_snps=noise_snps, quantity=rep)['0']
         print(sum(labels == 1))
         print(sum(labels == -1))
 
@@ -80,8 +55,8 @@ class TestDataGeneration(object):
         :return: a written featmat at data/synthetic/2d_syn_fm.h5py
         and a written featmat at data/synthetic/3d_syn_fm.h5py
         """
-        fm2 = h5py_to_featmat(embedding_type='2d', overwrite=True)
-        fm3 = h5py_to_featmat(embedding_type='3d', overwrite=True)
+        fm2 = genomic_to_featmat(embedding_type='2d', overwrite=True)
+        fm3 = genomic_to_featmat(embedding_type='3d', overwrite=True)
         assert fm2['0'].shape[0] == syn_n_subjects
         assert fm3['0'].shape[0] == syn_n_subjects
         assert fm2['0'].shape[1] == n_total_snps * 3
@@ -99,7 +74,7 @@ class TestDataGeneration(object):
                 labels = real_labels(disease_id)
 
                 pvalues = chi_square(data, labels)
-                os.makedirs(os.path.dirname(os.path.join(FINAL_RESULTS_DIR,'pvalues',disease_id, str(chrom))), exist_ok=True)
+                os.makedirs(os.path.dirname(os.path.join(REAL_DATA_DIR,'pvalues',disease_id, str(chrom))), exist_ok=True)
                 
                 np.save(os.path.join(FINAL_RESULTS_DIR,'pvalues',disease_id, str(chrom)), pvalues)
 

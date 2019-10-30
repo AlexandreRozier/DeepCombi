@@ -72,7 +72,7 @@ class TestDeepCOMBI(object):
             str(i)
         ) for i in range(rep))
 
-    def test_conv_lrp(self, h5py_data, syn_labels, syn_fm, syn_labels_0based, syn_labels_cat, indices, rep, tmp_path):
+    def test_conv_lrp(self, syn_genomic_data, syn_labels, syn_fm, syn_labels_0based, syn_labels_cat, indices, rep, tmp_path):
 
         fig, axes = plt.subplots(6, 2 * rep, squeeze=True)
         fig.set_size_inches(30, 30)
@@ -236,7 +236,8 @@ class TestDeepCOMBI(object):
             np.mean(svm_val_acc), np.std(svm_val_acc), np.max(svm_val_acc), np.min(svm_val_acc),
             np.mean(cnn_val_acc), np.std(cnn_val_acc), np.max(cnn_val_acc), np.min(cnn_val_acc)))
 
-    def test_tpr_fwer(self, h5py_data, syn_labels, syn_labels_0based, syn_labels_cat, syn_fm, indices, rep, true_pvalues):
+    def test_tpr_fwer(self, syn_genomic_data, syn_labels, syn_labels_0based, syn_labels_cat, syn_fm, indices, rep,
+                      syn_true_pvalues):
         """ Compares combi vs dense curves
         """
 
@@ -297,14 +298,14 @@ class TestDeepCOMBI(object):
         fm_3d = syn_fm("3d")
 
         pvalues_per_run_combi = np.array(Parallel(n_jobs=-1, require='sharedmem')(delayed(
-            combi_compute_pvalues)(h5py_data[str(i)][:], fm_2d[str(i)][:], syn_labels[str(i)]) for i in tqdm(range(rep))))
+            combi_compute_pvalues)(syn_genomic_data[str(i)][:], fm_2d[str(i)][:], syn_labels[str(i)]) for i in tqdm(range(rep))))
 
         pvalues_per_run_rpvt = np.array(Parallel(n_jobs=-1, require='sharedmem')(delayed(
-            chi_square)(h5py_data[str(i)][:], syn_labels[str(i)]) for i in tqdm(range(rep))))
+            chi_square)(syn_genomic_data[str(i)][:], syn_labels[str(i)]) for i in tqdm(range(rep))))
 
         # len(thresholds) * len(window_sizes) * 10020
         a = Parallel(n_jobs=-1, require='sharedmem')(delayed(
-            challenger_compute_pvalues)(h5py_data[str(i)][:], fm_3d[str(i)][:], syn_labels_cat[str(i)], syn_labels[str(i)],
+            challenger_compute_pvalues)(syn_genomic_data[str(i)][:], fm_3d[str(i)][:], syn_labels_cat[str(i)], syn_labels[str(i)],
                                         indices[str(i)]) for i in tqdm(range(rep)))
 
         # INNvestigate bugfix
@@ -314,7 +315,7 @@ class TestDeepCOMBI(object):
         pvalues_per_run_combi = pvalues_per_run_combi[np.logical_not(zeros_index)]
         pvalues_per_run_dense = pvalues_per_run_dense[np.logical_not(zeros_index)]
         pvalues_per_run_rpvt = pvalues_per_run_rpvt[np.logical_not(zeros_index)]
-        true_pvalues = true_pvalues[np.logical_not(zeros_index)]
+        syn_true_pvalues = syn_true_pvalues[np.logical_not(zeros_index)]
 
         # COMBI
         res_combi = np.array(Parallel(n_jobs=-1, require='sharedmem')(delayed(compute_metrics)(
@@ -413,11 +414,11 @@ class TestDeepCOMBI(object):
             os.path.join(IMG_DIR, 'tpr_fwer_montaez2_k_coca_a1b0-bugfix-100-{}bugs.png'.format(zeros_index.sum())),
             dpi=300)
 
-    def test_lrp_svm(self, h5py_data, syn_fm, indices, rep, tmp_path):
+    def test_lrp_svm(self, syn_genomic_data, syn_fm, indices, rep, tmp_path):
         """ Compares efficiency of the combi method with several TTBR
         """
         ttbrs = [20, 6, 1, 0]
-        h5py_data = h5py_data['4'][:]
+        syn_genomic_data = syn_genomic_data['4'][:]
         idx = indices['4']
         fig, axes = plt.subplots(len(ttbrs), 4, sharex='col')
         x_3d = syn_fm("3d")['0'][:]
@@ -425,7 +426,7 @@ class TestDeepCOMBI(object):
 
         for i, ttbr in enumerate(ttbrs):
             print('Using tbrr={}'.format(ttbr))
-            labels = generate_syn_phenotypes(ttbr=ttbr, quantity=rep)['4']
+            labels = generate_syn_phenotypes(tower_to_base_ratio=ttbr, quantity=rep)['4']
             l_0b = (labels + 1) / 2
 
             model = create_montaez_dense_model(best_params_montaez)

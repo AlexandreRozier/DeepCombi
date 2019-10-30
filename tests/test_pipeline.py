@@ -27,7 +27,7 @@ class TestPipeline(object):
 
     def test_save_combi_rm(self, real_genomic_data, real_labels, chrom_length):
 
-        """ Extract indices gotten from combi
+        """ Saves genome-wide raw relevance mapping (= SVM weights) obtained from COMBI. Shape (N, d, 3)
         """
         disease = disease_IDs[int(os.environ['SGE_TASK_ID']) - 1]
         offset = 0
@@ -52,7 +52,7 @@ class TestPipeline(object):
         np.save(os.path.join(FINAL_RESULTS_DIR, 'combi_raw_rm', disease), total_raw_rm)
 
     def test_save_deepcombi_rm(self, real_genomic_data, real_labels):
-        """ Extract rm and selected indices obtained through deepcombi
+        """ Saves genome-wide raw relevance mapping obtained from LRP. Shape (N, d, 3)
         """
         disease = disease_IDs[int(os.environ['SGE_TASK_ID']) - 1]
         offset = 0
@@ -76,6 +76,13 @@ class TestPipeline(object):
 
 
     def test_save_scaled_averaged_rm(self, chrom_length):
+
+        """
+        Postprocesses the genome-wide raw relevance mappings to generate their scaled version (with p_svm) and averaged version
+        (with the moving average and p_pnorm_filter), aswell as the preselected loci based from the averaged version.
+        What we call averaged weights here are the scaled + moving averaged weights.
+        :return:
+        """
 
         os.makedirs(os.path.join(FINAL_RESULTS_DIR, 'combi_avg_rm'), exist_ok=True)
         os.makedirs(os.path.join(FINAL_RESULTS_DIR, 'combi_scaled_rm'), exist_ok=True)

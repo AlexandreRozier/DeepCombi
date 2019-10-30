@@ -2,17 +2,13 @@ import os
 
 import h5py
 import numpy as np
-import tensorflow as tf
-import torch
-import torch.utils.data as data_utils
 from joblib import Parallel, delayed
-from keras.constraints import Constraint
 from scipy.stats import chi2
 from tensorflow.python.client import device_lib
-from torch.utils.data.sampler import SubsetRandomSampler
 from tqdm import tqdm
 
-from parameters_complete import SYN_DATA_DIR, ttbr as ttbr, syn_n_subjects, pnorm_feature_scaling, inform_snps, seed
+from parameters_complete import SYN_DATA_DIR, ttbr as ttbr, syn_n_subjects, pnorm_feature_scaling, inform_snps, seed, \
+    REAL_DATA_DIR
 
 
 def get_available_gpus():
@@ -59,7 +55,7 @@ def check_genotype_unique_allels(genotype):
                 for i in range(genotype.shape[1])]) <= 3)
 
 
-def generate_syn_genotypes(root_path=SYN_DATA_DIR, prefix="syn", n_subjects=syn_n_subjects, n_info_snps=20, n_noise_snps=10000, quantity=1):
+def generate_syn_genotypes(root_path=SYN_DATA_DIR, n_subjects=syn_n_subjects, n_info_snps=20, n_noise_snps=10000, quantity=1):
     """ Generate synthetic genotypes and labels by removing all minor allels with low frequency, and missing SNPs.
         First step of data preprocessing, has to be followed by string_to_featmat()
         > Checks that that each SNP in each chromosome has at most 2 unique values in the whole dataset.
@@ -67,12 +63,12 @@ def generate_syn_genotypes(root_path=SYN_DATA_DIR, prefix="syn", n_subjects=syn_
     print("Starting synthetic genotypes generation...")
 
     try:
-        os.remove(os.path.join(root_path, prefix+'_data.h5py'))
+        os.remove(os.path.join(root_path, 'genomic.h5py'))
     except FileNotFoundError:
         pass
 
 
-    with h5py.File(os.path.join(SYN_DATA_DIR, 'chromo_2.mat'), 'r') as f2:
+    with h5py.File(os.path.join(REAL_DATA_DIR,'CD','chromo_2.mat'), 'r') as f2:
         chrom2_full = np.array(f2.get('X')).T
 
     chrom2_full = chrom2_full.reshape(chrom2_full.shape[0], -1, 3)[:, :, :2]
@@ -81,7 +77,7 @@ def generate_syn_genotypes(root_path=SYN_DATA_DIR, prefix="syn", n_subjects=syn_
     assert chrom2_full.shape[0] > n_subjects
     chrom2 = chrom2_full[:n_subjects]
 
-    with h5py.File(os.path.join(SYN_DATA_DIR, 'chromo_1.mat'), 'r') as f:
+    with h5py.File(os.path.join(REAL_DATA_DIR,'CD', 'chromo_1.mat'), 'r') as f:
         chrom1_full = np.array(f.get('X')).T
 
 
@@ -92,7 +88,7 @@ def generate_syn_genotypes(root_path=SYN_DATA_DIR, prefix="syn", n_subjects=syn_
 
     # Create #rep different datasets, each with a different set of informative SNPs
     half_noise_size = int(n_noise_snps/2)
-    with h5py.File(os.path.join(root_path, prefix+'_data.h5py'), 'w') as file:
+    with h5py.File(os.path.join(root_path, 'genomic.h5py'), 'w') as file:
 
         for i in tqdm(range(quantity)):    
 
@@ -107,10 +103,10 @@ def generate_syn_genotypes(root_path=SYN_DATA_DIR, prefix="syn", n_subjects=syn_
             # Write everything!
             file.create_dataset(str(i), data=data)
 
-    return os.path.join(root_path, prefix+'_data.h5py')
+    return os.path.join(root_path, 'genomic.h5py')
 
 
-def generate_syn_phenotypes(root_path=SYN_DATA_DIR, ttbr=ttbr, prefix="syn", n_info_snps=20, n_noise_snps=10000, quantity=1):
+def generate_syn_phenotypes(root_path=SYN_DATA_DIR, tower_to_base_ratio=ttbr, n_info_snps=20, n_noise_snps=10000, quantity=1):
     """
     > Assumes that each SNP has at most 3 unique values in the whole dataset (Two allels and possibly unmapped values)
     IMPORTANT: DOES NOT LOAD FROM FILE
@@ -134,7 +130,7 @@ def generate_syn_phenotypes(root_path=SYN_DATA_DIR, ttbr=ttbr, prefix="syn", n_i
         nb_major_allels = np.sum(
             [major_mask_1, major_mask_2, invalid_mask], axis=0) - 1.0  # n
         probabilities = 1 / \
-            (1+np.exp(-ttbr * (nb_major_allels - np.median(nb_major_allels))))
+            (1 + np.exp(-tower_to_base_ratio * (nb_major_allels - np.median(nb_major_allels))))
         random_vector = np.random.RandomState(seed).uniform(low=0.0, high=1.0, size=n_indiv)
         labels = np.where(probabilities > random_vector, 1, -1)
         assert genotype.shape[0] == labels.shape[0]
@@ -142,7 +138,7 @@ def generate_syn_phenotypes(root_path=SYN_DATA_DIR, ttbr=ttbr, prefix="syn", n_i
         del genotype
 
 
-    with h5py.File(os.path.join(root_path, prefix+'_data.h5py'), 'r') as h5py_file:
+    with h5py.File(os.path.join(root_path, 'genomic.h5py'), 'r') as h5py_file:
         
         Parallel(n_jobs=-1, require='sharedmem')(delayed(f)(h5py_file[str(i)][:],str(i)) for i in tqdm(range(quantity)))
        
@@ -214,7 +210,7 @@ def char_matrix_to_featmat(data, embedding_type='2d', norm_feature_scaling=pnorm
 
 
 
-def h5py_to_featmat(embedding_type='2d', overwrite=False):
+def genomic_to_featmat(embedding_type='2d', overwrite=False):
     """
     Transforms a h5py dictionary of genomic matrix of chars to a tensor of features
     {'0': genomic_mat_0, '1': genomic_mat_1,..., 'rep': genomic_mat_rep }
@@ -224,9 +220,9 @@ def h5py_to_featmat(embedding_type='2d', overwrite=False):
     :return:
     """
 
-    data_path = os.path.join(SYN_DATA_DIR, 'syn_data.h5py')
+    data_path = os.path.join(SYN_DATA_DIR, 'genomic.h5py')
 
-    fm_path = os.path.join(SYN_DATA_DIR, embedding_type + '_syn_fm.h5py')
+    fm_path = os.path.join(SYN_DATA_DIR, embedding_type + '_fm.h5py')
 
     if overwrite:
         try:

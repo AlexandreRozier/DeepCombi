@@ -5,41 +5,35 @@ import matplotlib.cm as cm
 import numpy as np
 import time
 import os
-import h5py
-from helpers import chi_square, h5py_to_featmat, generate_syn_phenotypes, compute_metrics, plot_pvalues, char_matrix_to_featmat
+from helpers import chi_square, genomic_to_featmat, generate_syn_phenotypes, compute_metrics, plot_pvalues, char_matrix_to_featmat
 from combi import combi_method, permuted_combi_method, toy_classifier
 from tqdm import tqdm
 from joblib import Parallel, delayed
-from sklearn import svm
-from parameters_complete import thresholds, IMG_DIR, SYN_DATA_DIR, Cs, n_total_snps, inform_snps, noise_snps, \
+from parameters_complete import thresholds, IMG_DIR, SYN_DATA_DIR, n_total_snps, inform_snps, noise_snps, \
     real_pnorm_feature_scaling
-from parameters_complete import svm_epsilon, filter_window_size, top_k, ttbr as ttbr, random_state, alpha_sig_toy
+from parameters_complete import filter_window_size, top_k, ttbr , random_state, alpha_sig_toy
 
 
 
 class TestCombi(object):
     
 
-    def test_svm_accuracy(self, h5py_data):
-        with h5py.File(SYN_DATA_DIR + '/bett_labels.h5py', 'r') as l, h5py.File(SYN_DATA_DIR + '/bett_data.h5py', 'r') as d :
-            b_labels =  l['X'][:]
-            b_data =  d['X'][:]
-        toy_classifier = svm.LinearSVC(C=Cs, penalty='l2', tol=svm_epsilon, verbose=0, dual=True)
-        bfm = h5py_to_featmat()
+    def test_svm_accuracy(self, syn_genomic_data, syn_fm, syn_labels):
 
+        bfm = syn_fm('2d')['0'][:]
+        b_labels = syn_labels['0']
         toy_classifier.fit(bfm, b_labels)
         print("SVM score on Bettina's data: {}".format(toy_classifier.score(bfm, b_labels)))
     
         result = {}
-        toy_classifier = svm.LinearSVC(C=Cs, penalty='l2', tol=svm_epsilon, verbose=0, dual=True)
-        
+
         for ttbr in [6]:
             
-            n = len(list(h5py_data.keys()))
+            n = len(list(syn_genomic_data.keys()))
             train_accuracies = np.zeros(n)
-            labels = generate_syn_phenotypes(root_path=SYN_DATA_DIR, ttbr=ttbr)
-            for i, key in enumerate(list(h5py_data.keys())):
-                featmat = h5py_to_featmat()
+            labels = generate_syn_phenotypes(root_path=SYN_DATA_DIR, tower_to_base_ratio=ttbr)
+            for i, key in enumerate(list(syn_genomic_data.keys())):
+                featmat = genomic_to_featmat()
                 toy_classifier.fit(featmat, labels[key])
                 train_accuracies[i] = toy_classifier.score(featmat, labels[key])
             result[str(ttbr)] = 'mean:{}; std: {}; best:{}'.format(np.mean(train_accuracies), np.std(train_accuracies), np.max(train_accuracies))
@@ -47,20 +41,20 @@ class TestCombi(object):
         print(result)
 
 
-    def test_pvalues_generation(self, h5py_data, syn_labels):
-        pvalues = chi_square(h5py_data['0'][:], syn_labels['0'])
+    def test_pvalues_generation(self, syn_genomic_data, syn_labels):
+        pvalues = chi_square(syn_genomic_data['0'][:], syn_labels['0'])
         assert (-np.log10(pvalues)).max() > 9
 
-    def test_pvalues_subset_generation(self, h5py_data, syn_labels):
-        h5py_data = h5py_data['0'][:]
+    def test_pvalues_subset_generation(self, syn_genomic_data, syn_labels):
+        syn_genomic_data = syn_genomic_data['0'][:]
         indices = random_state.randint(h5py_data.shape[1], size=top_k)
         pvalues = chi_square(h5py_data[:,indices,:], syn_labels['0'])
         assert(len(pvalues) == len( indices))
         assert(min(pvalues) >= 0 and max(pvalues) <=1)
     
-    def test_combi(self, h5py_data, syn_labels):
-        h5py_data = h5py_data['0'][:]
-        syn_labels = syn_labels['0']
+    def test_combi(self, syn_genomic_data, syn_labels):
+        syn_genomic_data = syn_genomic_data['0'][:]
+        labels = syn_labels['0']
         fm = char_matrix_to_featmat(h5py_data, '2d', real_pnorm_feature_scaling)
         top_indices_sorted, pvalues, _ = combi_method(toy_classifier, h5py_data, fm, labels,
                                 filter_window_size, top_k)
@@ -68,17 +62,14 @@ class TestCombi(object):
 
 
 
-    def test_compare_combi(self,h5py_data):
+    def test_compare_combi(self, syn_genomic_data, syn_labels):
         """ Compares efficiency of the combi method with several TTBR
         """
         ttbrs = [20, 6, 1, 0]
-        h5py_data = h5py_data['0'][:]
-
+        b_data = syn_genomic_data['0'][:]
+        b_labels = syn_labels['0']
         fig, axes = plt.subplots(len(ttbrs) + 1, sharex='col')
-        with h5py.File(SYN_DATA_DIR + '/bett_labels.h5py', 'r') as l, h5py.File(SYN_DATA_DIR + '/bett_data.h5py', 'r') as d :
-            b_labels =  l['X'][:]
-            b_data =  d['X'][:]
-        
+
         complete_pvalues = chi_square(b_data, b_labels)
 
         top_indices_sorted, top_pvalues,_ = combi_method(b_data, b_labels,
@@ -88,18 +79,18 @@ class TestCombi(object):
 
         for i, ttbr in enumerate(ttbrs):
             print('Using tbrr={}'.format(ttbr))
-            labels = generate_syn_phenotypes(root_path=SYN_DATA_DIR, ttbr=ttbr)['0']
+            labels = generate_syn_phenotypes(root_path=SYN_DATA_DIR, tower_to_base_ratio=ttbr)['0']
 
-            complete_pvalues = chi_square(h5py_data, labels)
+            complete_pvalues = chi_square(b_data, labels)
 
-            top_indices_sorted, top_pvalues,_ = combi_method(h5py_data, labels,
+            top_indices_sorted, top_pvalues,_ = combi_method(b_data, labels,
                                 filter_window_size, top_k)
             plot_pvalues(complete_pvalues, top_indices_sorted, top_pvalues, axes[i+1])
             axes[i+1].legend(["Python-generated data; ttbr={}".format(ttbr)])
             fig.savefig(os.path.join(IMG_DIR,'combi_comparison.png'))
     
     
-    def test_multiple_runs(self,h5py_data):
+    def test_multiple_runs(self, syn_genomic_data):
         """ Compares efficiency of the combi method with several TTBR
         """
                     
@@ -107,11 +98,11 @@ class TestCombi(object):
         fig, axes = plt.subplots(max_runs, sharex='col', sharey='col')
         fig.set_size_inches(18.5, 10.5)
         print('Using tbrr={}'.format(ttbr))
-        labels = generate_syn_phenotypes(root_path=SYN_DATA_DIR, ttbr=ttbr)
-        for i,key in enumerate(list(h5py_data.keys())):
+        labels = generate_syn_phenotypes(root_path=SYN_DATA_DIR, tower_to_base_ratio=ttbr)
+        for i,key in enumerate(list(syn_genomic_data.keys())):
             if i >= max_runs:
                 break
-            data = h5py_data[key][:]
+            data = syn_genomic_data[key][:]
             complete_pvalues = chi_square(data, labels[key])
 
             top_indices_sorted, top_pvalues,_ = combi_method(data, labels[key],
@@ -122,7 +113,7 @@ class TestCombi(object):
         
 
 
-    def test_tpr_fwer_comparison(self, h5py_data,rep ):
+    def test_tpr_fwer_comparison(self, syn_genomic_data, rep):
         fig, axes = plt.subplots(2)
         fig.set_size_inches(18.5, 10.5)
         ax1, ax2 = axes
@@ -149,10 +140,11 @@ class TestCombi(object):
 
         colors = cm.rainbow(np.linspace(0, 1, len(ttbr_list)))
         for j,ttbr in enumerate(tqdm(ttbr_list)):
-            labels = generate_syn_phenotypes(ttbr=ttbr, root_path=SYN_DATA_DIR, n_info_snps=inform_snps, n_noise_snps=noise_snps)
+            labels = generate_syn_phenotypes(root_path=SYN_DATA_DIR, tower_to_base_ratio=ttbr, n_info_snps=inform_snps,
+                                             n_noise_snps=noise_snps)
             
-            pvalues_per_run_combi = Parallel(n_jobs=-1, require='sharedmem')(delayed(p_compute_pvalues)(h5py_data[str(i)][:], labels[str(i)]) for i in tqdm(range(rep)))
-            pvalues_per_run_x2 = Parallel(n_jobs=-1, require='sharedmem')(delayed(chi_square)(h5py_data[str(i)][:], labels[str(i)]) for i in tqdm(range(rep)))
+            pvalues_per_run_combi = Parallel(n_jobs=-1, require='sharedmem')(delayed(p_compute_pvalues)(syn_genomic_data[str(i)][:], labels[str(i)]) for i in tqdm(range(rep)))
+            pvalues_per_run_x2 = Parallel(n_jobs=-1, require='sharedmem')(delayed(chi_square)(syn_genomic_data[str(i)][:], labels[str(i)]) for i in tqdm(range(rep)))
            
             res_combi = np.array(Parallel(n_jobs=-1, require='sharedmem')(delayed(compute_metrics)(pvalues_per_run_combi, true_pvalues, rep, threshold) for threshold in tqdm(thresholds)))
             res_x2 = np.array(Parallel(n_jobs=-1, require='sharedmem')(delayed(compute_metrics)(pvalues_per_run_x2, true_pvalues, rep, threshold) for threshold in tqdm(thresholds)))
@@ -172,7 +164,7 @@ class TestCombi(object):
         fig.savefig(os.path.join(IMG_DIR,'tpr_fwer_comparison.png'), dpi=300)
     
 
-    def test_tpr_fwer_k(self, h5py_data, rep ):
+    def test_tpr_fwer_k(self, syn_genomic_data, rep):
         fig, axes = plt.subplots(1)
         fig.set_size_inches(18.5, 10.5)
         ax1 = axes
@@ -185,7 +177,8 @@ class TestCombi(object):
         true_pvalues = np.zeros((rep, n_total_snps), dtype=bool)
         true_pvalues[:,int(noise_snps/2):int(noise_snps/2)+inform_snps] = True
 
-        labels = generate_syn_phenotypes(ttbr=ttbr, root_path=SYN_DATA_DIR, n_info_snps=inform_snps, n_noise_snps=noise_snps)
+        labels = generate_syn_phenotypes(root_path=SYN_DATA_DIR, tower_to_base_ratio=ttbr, n_info_snps=inform_snps,
+                                         n_noise_snps=noise_snps)
 
         
         # Try a couple of different ks 
@@ -200,7 +193,7 @@ class TestCombi(object):
                 del data, labels
                 return pvalues_filled
             
-            pvalues_per_run_combi = Parallel(n_jobs=-1, require='sharedmem')(delayed(f)(h5py_data[str(i)][:], labels[str(i)]) for i in range(rep))
+            pvalues_per_run_combi = Parallel(n_jobs=-1, require='sharedmem')(delayed(f)(syn_genomic_data[str(i)][:], labels[str(i)]) for i in range(rep))
 
             res_combi = np.array(Parallel(n_jobs=-1, require='sharedmem')(delayed(compute_metrics)(pvalues_per_run_combi, true_pvalues, rep, threshold) for threshold in tqdm(thresholds)))
 
@@ -215,10 +208,10 @@ class TestCombi(object):
         fig.savefig(os.path.join(IMG_DIR,'tpr_fwer_k.png'), dpi=300)
     
 
-    def test_joblib_speedup(self, syn_labels, syn_fm, h5py_data):
-        h5py_data = h5py_data['0'][:]
-        syn_labels = syn_labels['0']
-        syn_fm = syn_fm('2d')['0'][:]
+    def test_joblib_speedup(self, syn_labels, syn_fm, syn_genomic_data):
+        syn_genomic_data = syn_genomic_data['0'][:]
+        labels = syn_labels['0']
+        fm = syn_fm('2d')['0'][:]
         n_permutations = 1000
 
         start_time = time.time()
@@ -235,7 +228,7 @@ class TestCombi(object):
         print('Parallel time: {} s'.format(time.time()-start_time))
 
 
-    def test_tpr_fwer_ttbr(self, h5py_data):
+    def test_tpr_fwer_ttbr(self, syn_genomic_data, rep, syn_true_pvalues):
         
         fig, axes = plt.subplots(1)
         fig.set_size_inches(18.5, 10.5)
@@ -262,11 +255,12 @@ class TestCombi(object):
         for ttbr in tqdm(ttbrs):
             
 
-            labels = generate_syn_phenotypes(ttbr=ttbr, root_path=SYN_DATA_DIR, n_info_snps=inform_snps, n_noise_snps=noise_snps)
+            labels = generate_syn_phenotypes(root_path=SYN_DATA_DIR, tower_to_base_ratio=ttbr, n_info_snps=inform_snps,
+                                             n_noise_snps=noise_snps)
             
-            pvalues_per_run = Parallel(n_jobs=-1, require='sharedmem')(delayed(f)(h5py_data[str(i)][:], labels[str(i)]) for i in range(rep))
+            pvalues_per_run = Parallel(n_jobs=-1, require='sharedmem')(delayed(f)(syn_genomic_data[str(i)][:], labels[str(i)]) for i in range(rep))
             
-            res_combi = np.array(Parallel(n_jobs=-1, require='sharedmem')(delayed(compute_metrics)(pvalues_per_run, true_pvalues, rep, threshold) for threshold in tqdm(thresholds)))
+            res_combi = np.array(Parallel(n_jobs=-1, require='sharedmem')(delayed(compute_metrics)(pvalues_per_run, syn_true_pvalues, rep, threshold) for threshold in tqdm(thresholds)))
 
             tpr, enfr, fwer, precision = res_combi.T
 
@@ -278,13 +272,13 @@ class TestCombi(object):
         fig.savefig(os.path.join(IMG_DIR,'tpr_fwer_ttbr.png'), dpi=300)
     
 
-    def test_permutations(self, h5py_data, syn_fm, syn_labels, rep):
+    def test_permutations(self, syn_genomic_data, syn_fm, syn_labels, rep):
         true_pvalues = np.zeros((rep, n_total_snps), dtype=bool)
         true_pvalues[:,int(noise_snps/2):int(noise_snps/2)+inform_snps] = True
 
-        h5py_data = h5py_data['0'][:]
-        syn_labels = syn_labels['0']
-        syn_fm = syn_fm('2d')['0'][:]
+        syn_genomic_data = syn_genomic_data['0'][:]
+        labels = syn_labels['0']
+        fm = syn_fm('2d')['0'][:]
         n_permutations = 100
         t_star = permuted_combi_method(h5py_data, fm, labels, n_permutations, alpha_sig_toy, filter_window_size, top_k)
         pvalues = chi_square(h5py_data, labels)
