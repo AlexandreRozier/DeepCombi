@@ -4,7 +4,7 @@ This repository contains the implementation of the DeepCOMBI method,
 a neural-network-based improvement of COMBI, a Genome-wide Association Studies tool.  
 COMBI is described [here](https://www.nature.com/articles/srep36671#methods).
 
-####Content:
+#### Content:
 
 - `data/`:  Contains synthetic and real genomic data used in DeepCOMBI 
 - `img/`:   
