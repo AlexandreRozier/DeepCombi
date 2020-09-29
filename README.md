@@ -19,7 +19,7 @@ and hyperparameters search, ...
         
 
 #### Synthetic Data workflow
-- Run `ROOT_DIR=$PWD SGE_TASK_ID=1 python -m pytest -s tests/test_data_generation.py::TestDataGeneration::test_synthetic_genotypes_generation --rep 100` to generate 
+- Run `ROOT_DIR=$PWD SGE_TASK_ID=1 python -m pytest -s tests/test_data_generation.py::TestDataGeneration::test_synthetic_genotypes_generation --rep 100` to generate    
 `rep` different genotypes and save them into `data/synthetic/genomic.h5py`
 
 - Run `ROOT_DIR=$PWD SGE_TASK_ID=1 python -m pytest -s tests/test_data_generation.py::TestDataGeneration::test_feature_map_generation` to generate 

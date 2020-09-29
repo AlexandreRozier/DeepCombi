@@ -309,7 +309,9 @@ best_params_montaez = {
     'dropout_rate':0.5,
     'factor':0.7125,
     'patience':50,
-    'hidden_neurons':10
+    'hidden_neurons':10,
+    'n_snps':10020
+
 }
 
 
