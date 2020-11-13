@@ -9,29 +9,20 @@ This software package also contains methods for generating artificial GWAS data 
 
 Developed by Alexandre Rozier and Bettina Mieth.
 
-#### Publication
+## Publication
 
 The Python framework and this website are part of a publication currently under peer-review at Nucleic Acids Research. The pre-print article is available [here](https://www.biorxiv.org/content/10.1101/2020.11.06.371542v1). Links to the published paper will be included here once available.
 
-#### Abstract
+## Abstract
 
 Deep learning has revolutionized data science in many fields by greatly improving prediction performances in comparison to conventional approaches. Recently, explainable artificial intelligence has emerged as a novel area of research that goes beyond pure prediction improvement by extracting knowledge from deep learning methodologies through the interpretation of their results. We investigate such explanations to explore the genetic architectures of phenotypes in genome-wide association studies. Instead of testing each position in the genome individually, the novel three-step algorithm, called DeepCOMBI, first trains a neural network for the classification of subjects into their respective phenotypes. Second, it explains the classifiers’ decisions by applying layerwise relevance propagation as one example from the pool of explanation techniques. The resulting importance scores are eventually used to determine a subset of most relevant locations for multiple hypothesis testing in the third step. The performance of DeepCOMBI in terms of power and precision is investigated on generated datasets and a 2007 study. Verification of the latter is achieved by validating all findings with independent studies published up until 2020. DeepCOMBI is shown to outperform ordinary raw p-value thresholding and other baseline methods. Two novel disease associations (rs10889923 for hypertension, rs4769283 for type 1 diabetes) were identified.
 
-#### How to run DeepCOMBI
+## How to run DeepCOMBI
 
-#### Content:
-data/: Contains synthetic and real genomic data used in DeepCOMBI
-img/:
-notebooks/:
-qsub_scripts/:
-misc/: Small tests used to assess of the performance of various file formats
-tests/: Pytest-based implementation of DeepCOMBI, allowing to train various models
-experiments/: A folder per experiment on WTCCC data. Each subfolder corresponds to a new NN arcthitecture and hyperparameters search, ...
-
-#### Replicating experiments
+## Replicating experiments
 In the course of our research (from [Mieth et al.](https://www.biorxiv.org/content/10.1101/2020.11.06.371542v1) ) we have investigated the performance of the proposed method in comparison with the most important baseline methods firstly in a simulation study on generated data and secondly on real data (Wellcome Trust Case Control Consortium (2007) Genome-wide association study of 14,000 cases of seven common diseases and 3,000 shared controls. Nature. 447(7145), 661–678.) To fully reproduce the experiments of our study, please follow the corresponding instructions for the application of DeepCOMBI on both generated and real datasets.
 
-#### On generated synthetic datasets
+### On generated synthetic datasets
 - Run `ROOT_DIR=$PWD SGE_TASK_ID=1 python -m pytest -s tests/test_data_generation.py::TestDataGeneration::test_synthetic_genotypes_generation --rep 1000` to generate `rep` different genotypes that will be saved in `data/synthetic/genomic.h5py`.
 
 - Run `ROOT_DIR=$PWD SGE_TASK_ID=1 python -m pytest -s tests/test_data_generation.py::TestDataGeneration::test_feature_map_generation` to generate the features matrices associated to the genomic datasets previously created in `data/synthetic/genomic.h5py` and saves them in `data/synthetic/2d_fm.h5py` and `data/synthetic/3d_fm.h5py`
@@ -42,7 +33,10 @@ In the course of our research (from [Mieth et al.](https://www.biorxiv.org/conte
 
 - To generate Table 1 of the paper run `ROOT_DIR=$PWD SGE_TASK_ID=1 python -m pytest -s tests/test_deepcombi.py::TestDeepCOMBI::test_svm_cnn_comparison_alex --rep 1000` to investigate the prediction accuracies of the SVM and the DNN on the generated datasets.
 
-#### On the 2007 WTCCC dataset
+### On your own dataset or the 2007 WTCCC dataset
+- The data should be saved in the folder `data/`. The folder `experiments/:` should contain a subfolder which corresponds to a new NN arcthitecture or hyperparameters setting. 
+
+- Please adjust all file paths and parameters in `parameters_complete.py`.
 
 - Run `ROOT_DIR=$PWD SGE_TASK_ID=1 python -m pytest -s tests/test_data_generation.py::TestDataGeneration::test_mat_preprocessing` to create (N x d x 2) genomic matrices for all diseases and chromosomes. This only needs to be done once.
 
