@@ -1,0 +1,7 @@
+	chromosome	rs_identifier	pvalue	evaluation_label
+0	9	rs1333049	1.1247447381408679e-13	1.0
+1	6	rs519758	2.749624463541618e-06	0.0
+2	5	rs2964748	5.315457439110083e-06	0.0
+3	1	rs17672135	1.2168338292725846e-05	0.0
+
+Careful, these are not correct, the script that made it doesnt work for CAD. Probably because of the preprocessing of that dataset.
