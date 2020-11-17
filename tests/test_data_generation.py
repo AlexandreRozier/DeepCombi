@@ -76,7 +76,7 @@ class TestDataGeneration(object):
                 pvalues = chi_square(data, labels)
                 os.makedirs(os.path.dirname(os.path.join(REAL_DATA_DIR,'pvalues',disease_id, str(chrom))), exist_ok=True)
                 
-                np.save(os.path.join(FINAL_RESULTS_DIR,'pvalues',disease_id, str(chrom)), pvalues)
+                np.save(os.path.join(REAL_DATA_DIR,'pvalues',disease_id, str(chrom)), pvalues)
 
                 del data, pvalues
 
