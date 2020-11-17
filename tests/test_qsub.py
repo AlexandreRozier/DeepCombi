@@ -9,7 +9,6 @@ import numpy as np
 import pickle
 
 from parameters_complete import (TEST_DIR, SYN_DATA_DIR, PARAMETERS_DIR)
-from models import  create_dense_model
 
 class TestQsub(object):
     
@@ -49,19 +48,4 @@ class TestQsub(object):
             pickle.dump(p, output, pickle.HIGHEST_PROTOCOL)
 
 
-    def test_train_model_from_conf(self, indices):
-        CONF_PATH = os.path.join(PARAMETERS_DIR,os.environ['SGE_TASK_ID'])
-
-        with open(CONF_PATH, 'rb') as input:
-            p = pickle.load(input)
-            print("Using params {}".format(p))
-            history, model = create_dense_model(indices.train, indices.test, p)
-            print("Number of weights: {}".format(model.count_params()))
-            assert(np.max(history.history['val_acc']) > 0.70)
-            model_name = generate_name_from_params(p)
-            model.save(os.path.join(TEST_DIR,'exported_models',model_name))
-
     
-    
-
-
