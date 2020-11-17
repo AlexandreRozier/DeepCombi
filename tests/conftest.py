@@ -1,4 +1,5 @@
 import os
+import pdb
 
 import h5py
 import numpy as np
@@ -53,11 +54,15 @@ def chrom_length():
     :return:
     """
     def chrom_length_(disease, chrom):
-        try:
-            _, shape, _ = scipy.io.whosmat(os.path.join(REAL_DATA_DIR, disease, 'chromo_{}.mat'.format(chrom)))[0][1] / 3.0
+        #try:
+        #    pdb.set_trace()
+        #    _, shape, _ = scipy.io.whosmat(os.path.join(REAL_DATA_DIR, disease, 'chromo_{}.mat'.format(chrom)))[0][1] / 3.0
 
-        except NotImplementedError:
-            shape = h5py.File(os.path.join(REAL_DATA_DIR, disease, 'chromo_{}.mat'.format(chrom))).get('X').shape[0] / 3.0
+        #except NotImplementedError:
+        #    shape = h5py.File(os.path.join(REAL_DATA_DIR, disease, 'chromo_{}.mat'.format(chrom))).get('X').shape[0] / 3.0
+
+        _, shape, _ = scipy.io.loadmat(os.path.join(REAL_DATA_DIR, disease, 'chromo_{}_processed.mat'.format(chrom)))['X'].shape
+
         return int(shape)
 
     return chrom_length_
@@ -68,17 +73,16 @@ def chrom_length():
 @pytest.fixture(scope='module')
 def alphas():
     def alphas_(disease):
-
-        with h5py.File(os.path.join(REAL_DATA_DIR, disease, 'alpha_j.mat', 'r')) as f:
-            return f['alpha_j'].T[0]    
+        f = scipy.io.loadmat(os.path.join(REAL_DATA_DIR, disease, 'alpha_j.mat')) 
+        return f['alpha_j'].T[0]    
     return alphas_
 
 @pytest.fixture(scope='module')
 def alphas_ev():
     def alphas_EV_(disease):
 
-        with h5py.File(os.path.join(REAL_DATA_DIR, disease, 'alpha_j_EV.mat', 'r')) as f:
-            return f['alpha_j_EV'].T[0]   
+        f=scipy.io.loadmat(os.path.join(REAL_DATA_DIR, disease, 'alpha_j_EV.mat'))
+        return f['alpha_j_EV'].T[0]   
     return alphas_EV_
 
 """
@@ -131,8 +135,7 @@ def syn_labels(rep, ttbr):
     }
 
     """
-    return generate_syn_phenotypes(root_path=SYN_DATA_DIR, tower_to_base_ratio=ttbr, n_info_snps=inform_snps, n_noise_snps=noise_snps,
-                                   quantity=rep)
+    return generate_syn_phenotypes(root_path=SYN_DATA_DIR, tower_to_base_ratio=ttbr, n_info_snps=inform_snps, n_noise_snps=noise_snps, quantity=rep)
      
 @pytest.fixture(scope='function')
 def syn_labels_cat(syn_labels):
