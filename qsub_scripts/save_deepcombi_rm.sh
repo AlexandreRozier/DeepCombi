@@ -1,7 +1,7 @@
 #!/bin/bash
-#$ -wd /home/hx/PythonImplementation
-#$ -o /home/hx/PythonImplementation/qsub_output/
-#$ -e /home/hx/PythonImplementation/qsub_errors/
+#$ -wd /home/bmieth/DeepCombi
+#$ -o /home/bmieth/DeepCombi/qsub_output/
+#$ -e /home/bmieth/DeepCombi/qsub_errors/
 source ~/.bashrc
 
 echo "Bootstraping..."
