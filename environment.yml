@@ -1,5 +1,6 @@
 name: combi
 channels:
+  - pytorch
   - conda-forge
   - defaults
 dependencies:
@@ -104,6 +105,7 @@ dependencies:
   - pyrsistent=0.15.4=py36h516909a_0
   - python=3.6.9=h265db76_0
   - python-dateutil=2.8.0=py36_0
+  - pytorch=1.5.0=py3.6_cuda10.1.243_cudnn7.6.3_0
   - pytz=2019.2=py_0
   - pyzmq=18.1.0=py36h1768529_0
   - qt=5.9.7=h5867ecd_1
@@ -122,6 +124,7 @@ dependencies:
   - terminado=0.8.2=py36_0
   - testpath=0.4.2=py_1001
   - tk=8.6.8=hbc83047_0
+  - torchvision=0.6.0=py36_cu101
   - tornado=6.0.3=py36h7b6447c_0
   - tqdm=4.32.1=py_0
   - wcwidth=0.1.7=py_1
