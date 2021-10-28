@@ -23,7 +23,13 @@ Deep learning has revolutionized data science in many fields by greatly improvin
 In the course of our research (from [Mieth et al.](https://www.biorxiv.org/content/10.1101/2020.11.06.371542v1) ) we have investigated the performance of the proposed method in comparison with the most important baseline methods firstly in a simulation study on generated data and secondly on real data (Wellcome Trust Case Control Consortium (2007) Genome-wide association study of 14,000 cases of seven common diseases and 3,000 shared controls. Nature. 447(7145), 661–678.) To fully reproduce the experiments of our study, please follow the corresponding instructions for the application of DeepCOMBI on both generated and real datasets.
 
 ### On generated synthetic datasets
-- Run `ROOT_DIR=$PWD SGE_TASK_ID=1 python -m pytest -s tests/test_data_generation.py::TestDataGeneration::test_synthetic_genotypes_generation --rep 1000` to generate `rep` different genotypes that will be saved in `data/synthetic/genomic.h5py`.
+- Run `ROOT_DIR=$PWD SGE_TASK_ID=1 python -m pytest -s tests/test_data_generation.py::TestDataGeneration::test_synthetic_genotypes_generation --rep 1000` to generate `rep` different genotypes that will be saved in `data/synthetic/genomic.h5py`. Please note, that to generate datasets you need two real datasets to sample from. We use the WTCCC data and randomly select 300 subjects of the Crohn's disease dataset. We draw a random block of 20 consecutive SNPs from chromosome 1 and a random block of 10,000 consecutive SNPs from chromosome 2. The process is described in detail in our manuscript on page 6. Unfortunately, we are not authorized to publish this data and you will have to save your own datasets in the corresponding .mat files. The .mat files should be simple arrays of characters where the number of rows equals the number of subjects and the number of columns equals the number of SNPs * 3 (two letters for the genotype and one space). A small part of it with three subjects and the genotypes of four SNPs given would look like this:
+ 
+AA AA CG GG
+AT AA GG GG
+TT AT CC GT
+
+Converting your own Plink files should be straightforward.
 
 - Run `ROOT_DIR=$PWD SGE_TASK_ID=1 python -m pytest -s tests/test_data_generation.py::TestDataGeneration::test_feature_map_generation` to generate the features matrices associated to the genomic datasets previously created in `data/synthetic/genomic.h5py` and saves them in `data/synthetic/2d_fm.h5py` and `data/synthetic/3d_fm.h5py`
 
@@ -34,7 +40,15 @@ In the course of our research (from [Mieth et al.](https://www.biorxiv.org/conte
 - To generate Table 1 of the paper run `ROOT_DIR=$PWD SGE_TASK_ID=1 python -m pytest -s tests/test_deepcombi.py::TestDeepCOMBI::test_svm_cnn_comparison_alex --rep 1000` to investigate the prediction accuracies of the SVM and the DNN on the generated datasets.
 
 ### On your own dataset or the 2007 WTCCC dataset
-- The data should be saved in the folder `data/`. The folder `experiments/:` should contain a subfolder which corresponds to a new NN arcthitecture or hyperparameters setting. 
+- The data should be saved in the folder `data/`.  The .mat files should be simple arrays of characters where the number of rows equals the number of subjects and the number of columns equals the number of SNPs * 3 (two letters for the genotype and one space). A small part of it with three subjects and the genotypes of four SNPs given would look like this:
+ 
+AA AA CG GG
+AT AA GG GG
+TT AT CC GT
+
+Converting your Plink files should be straightforward.
+
+- The folder `experiments/:` should contain a subfolder which corresponds to a new NN arcthitecture or hyperparameters setting. 
 
 - Please adjust all file paths and parameters in `parameters_complete.py`.
 
